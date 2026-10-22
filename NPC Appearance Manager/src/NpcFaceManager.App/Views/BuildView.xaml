@@ -1,0 +1,90 @@
+<UserControl x:Class="NpcFaceManager.App.Views.BuildView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="Build" Style="{StaticResource Title}" />
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" />
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Mod name" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding OutputModName, UpdateSourceTrigger=PropertyChanged}" MaxWidth="420" HorizontalAlignment="Left" MinWidth="320"
+                         ToolTip="{Binding OutputFolder}" />
+                <TextBlock Grid.Row="1" Text="Plugin name" VerticalAlignment="Center" Margin="0,8,0,0" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBox Text="{Binding OutputPluginName, UpdateSourceTrigger=PropertyChanged}" Width="320" />
+                    <TextBlock Text=".esp" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <CheckBox Content="Disable merged mods after build" IsChecked="{Binding AutoDisable}" Margin="0,16,0,0"
+                      ToolTip="Disables the merged mods in your MO2 profile and enables the new mod. Backups of the mod and plugin lists are made first."
+                      Visibility="{Binding IsMo2, Converter={StaticResource BoolToVisibility}}" />
+
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                <Button Content="Back" Command="{Binding BackCommand}" Margin="0" />
+                <Button Content="Build" Style="{StaticResource PrimaryButton}" Command="{Binding BuildCommand}" Padding="22,7" Margin="8,0,0,0" />
+                <TextBlock Text="{Binding ProgressText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </StackPanel>
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,8,0,0" Visibility="{Binding IsBuilding, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Results -->
+            <StackPanel Margin="0,20,0,0" Visibility="{Binding Report, Converter={StaticResource NullToCollapsed}}">
+                <TextBlock Text="{Binding ResultHeadline}" FontWeight="SemiBold" Foreground="{StaticResource GoodBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Mo2Message}" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                           Visibility="{Binding Mo2Message, Converter={StaticResource NullToCollapsed}}" />
+
+                <TextBlock Text="Merged" FontWeight="SemiBold" Margin="0,16,0,4" />
+                <ItemsControl ItemsSource="{Binding SafeToDisable}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding StringFormat='•  {0}'}" TextWrapping="Wrap" /></DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Visibility="{Binding MustStay.Count, Converter={StaticResource NullToCollapsed}}">
+                    <TextBlock Text="Stayed on" FontWeight="SemiBold" Margin="0,16,0,4" Foreground="{StaticResource WarningBrush}"
+                               ToolTip="Hover a mod to see why" />
+                    <ItemsControl ItemsSource="{Binding MustStay}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding Name, StringFormat='•  {0}'}" ToolTip="{Binding Reason}" TextWrapping="Wrap" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                    <Button Content="Copy list" Command="{Binding CopyListCommand}" Margin="0" ToolTip="Copy the merged mods to the clipboard" />
+                    <Button Content="Open folder" Command="{Binding OpenOutputFolderCommand}" Margin="8,0,0,0" ToolTip="{Binding OutputFolder}" />
+                </StackPanel>
+
+                <Expander Header="Masters" Margin="0,16,0,0" ToolTip="Plugins the new plugin uses; they stay enabled">
+                    <ItemsControl ItemsSource="{Binding StillNeeded}" Margin="16,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Muted}" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+
+                <Expander Margin="0,8,0,0" Visibility="{Binding Warnings.Count, Converter={StaticResource NullToCollapsed}}">
+                    <Expander.Header>
+                        <TextBlock Foreground="{StaticResource WarningBrush}">
+                            <Run Text="Notes" /> (<Run Text="{Binding Warnings.Count, Mode=OneWay}" />)
+                        </TextBlock>
+                    </Expander.Header>
+                    <ItemsControl ItemsSource="{Binding Warnings}" Margin="16,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,2" /></DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

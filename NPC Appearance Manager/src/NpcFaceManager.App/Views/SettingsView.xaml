@@ -1,0 +1,79 @@
+<UserControl x:Class="NpcFaceManager.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:NpcFaceManager.App.Views">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource Title}">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Margin" Value="0,18,0,8" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource Title}" />
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" />
+
+            <TextBlock Text="Setup" Style="{StaticResource Section}"
+                       ToolTip="Only needed when the tool isn't opened from Mod Organizer 2" />
+            <Grid IsEnabled="{Binding LaunchedFromMo2, Converter={x:Static local:Negate.Instance}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="MO2 instance" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding Mo2IniPath, UpdateSourceTrigger=PropertyChanged}" Tag="ModOrganizer.ini" />
+                <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseMo2Command}" />
+
+                <TextBlock Grid.Row="1" Text="MO2 profile" VerticalAlignment="Center" Margin="0,8,0,0" />
+                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Mo2Profile}" Margin="0,8,0,0" MaxWidth="300" HorizontalAlignment="Left" MinWidth="200" />
+
+                <TextBlock Grid.Row="2" Text="Skyrim folder" VerticalAlignment="Center" Margin="0,8,0,0" ToolTip="Only without MO2" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GameFolder, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0" Tag="Without MO2 only" />
+                <Button Grid.Row="2" Grid.Column="2" Content="Browse..." Command="{Binding BrowseGameCommand}" Margin="4,8,0,0" />
+            </Grid>
+            <Button Content="Reload setup" Command="{Binding ReloadSetupCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                    ToolTip="Use after changing the MO2 instance, profile or Skyrim folder"
+                    Visibility="{Binding LaunchedFromMo2, Converter={StaticResource InverseBoolToVisibility}}" />
+
+            <TextBlock Text="Pictures" Style="{StaticResource Section}"
+                       ToolTip="Order: your mugshots folder, then FaceFinder, then generated" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Mugshots folder" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding MugshotsFolder, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Same layout as NPC Plugin Chooser 2 / EasyNPC: Mod name\Plugin.esp\FormID.png" />
+                <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseMugshotsCommand}" />
+
+                <TextBlock Grid.Row="1" Text="FaceFinder" VerticalAlignment="Center" Margin="0,10,0,0" />
+                <CheckBox Grid.Row="1" Grid.Column="1" Content="Download missing pictures" IsChecked="{Binding UseFaceFinder}"
+                          IsEnabled="{Binding FaceFinderAvailable}" ToolTip="{Binding FaceFinderNote}" ToolTipService.ShowOnDisabled="True" Margin="0,10,0,0" />
+
+                <TextBlock Grid.Row="2" Text="Generate missing" VerticalAlignment="Center" Margin="0,10,0,0" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding GeneratorOptions}" SelectedItem="{Binding Generator}"
+                          DisplayMemberPath="Label" Margin="0,10,0,0" MaxWidth="300" HorizontalAlignment="Left" MinWidth="240"
+                          ToolTip="Internal renderer needs a graphics card" />
+
+                <TextBlock Grid.Row="3" Text="Portrait Creator" VerticalAlignment="Center" Margin="0,8,0,0" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding PortraitCreatorPath, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0"
+                         Tag="NPCPortraitCreator.exe" ToolTip="Used when Generate missing is set to Portrait Creator" />
+                <Button Grid.Row="3" Grid.Column="2" Content="Browse..." Command="{Binding BrowsePortraitCreatorCommand}" Margin="4,8,0,0" />
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
