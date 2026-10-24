@@ -1,0 +1,110 @@
+<UserControl x:Class="NpcFaceManager.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:NpcFaceManager.App.Views">
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource Title}">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Margin" Value="0,18,0,8" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource Title}" />
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" />
+
+            <TextBlock Text="Setup" Style="{StaticResource Section}"
+                       ToolTip="Only needed when the tool isn't opened from Mod Organizer 2" />
+            <Grid IsEnabled="{Binding LaunchedFromMo2, Converter={x:Static local:Negate.Instance}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="MO2 instance" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding Mo2IniPath, UpdateSourceTrigger=PropertyChanged}" Tag="ModOrganizer.ini" />
+                <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseMo2Command}" />
+
+                <TextBlock Grid.Row="1" Text="MO2 profile" VerticalAlignment="Center" Margin="0,8,0,0" />
+                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Mo2Profile}" Margin="0,8,0,0" MaxWidth="300" HorizontalAlignment="Left" MinWidth="200" />
+
+                <TextBlock Grid.Row="2" Text="Skyrim folder" VerticalAlignment="Center" Margin="0,8,0,0" ToolTip="Only without MO2" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GameFolder, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0" Tag="Without MO2 only" />
+                <Button Grid.Row="2" Grid.Column="2" Content="Browse..." Command="{Binding BrowseGameCommand}" Margin="4,8,0,0" />
+            </Grid>
+            <Button Content="Reload setup" Command="{Binding ReloadSetupCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                    ToolTip="Use after changing the MO2 instance, profile or Skyrim folder"
+                    Visibility="{Binding LaunchedFromMo2, Converter={StaticResource InverseBoolToVisibility}}" />
+
+            <TextBlock Text="Mugshots" Style="{StaticResource Section}" />
+            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Text="Each face's mugshot comes from the first of these that has one. Everything is kept on this PC, so a mugshot is only downloaded or rendered once. It's only fetched again when you press that source's button below." />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 1: your mugshots -->
+                <TextBlock Text="1  Your mugshots" VerticalAlignment="Top" Margin="0,4,0,0" />
+                <StackPanel Grid.Column="1">
+                    <TextBox Text="{Binding MugshotsFolder, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Layout: Mod name\Plugin.esp\FormID.png" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Text="Starts as the tool's own folder (Mugshot Cache\Mugshots). Point it at a folder of mugshots you already have. Always used first; never changed by this tool." />
+                </StackPanel>
+                <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseMugshotsCommand}" VerticalAlignment="Top" />
+
+                <!-- 2: FaceFinder -->
+                <TextBlock Grid.Row="1" Text="2  FaceFinder" VerticalAlignment="Top" Margin="0,16,0,0" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,14,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox Content="Use FaceFinder" IsChecked="{Binding UseFaceFinder}" VerticalAlignment="Center"
+                                  ToolTip="Mugshots from npcfacefinder.com, and faces from mods you don't have installed. You can pick them, but install the mod before building." />
+                        <Button Content="Update FaceFinder" Command="{Binding UpdateFaceFinderCommand}" Margin="12,0,0,0"
+                                ToolTip="Downloads FaceFinder's list of faces again (new mods and faces). Saved mugshots of faces FaceFinder changed are replaced the next time they're shown. Runs in the background." />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Main.FaceFinderStatus}" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <CheckBox Content="Download all FaceFinder mugshots" IsChecked="{Binding DownloadAllFaceFinder}" VerticalAlignment="Center"
+                                  IsEnabled="{Binding UseFaceFinder}"
+                                  ToolTip="About 40,000 mugshots, around 3.4 GB, downloaded once in the background. Switching it off keeps what's saved." />
+                        <Button Content="Remove downloaded mugshots" Command="{Binding RemoveFaceFinderPicturesCommand}" Margin="12,0,0,0"
+                                ToolTip="Deletes the FaceFinder mugshots saved on this PC (asks first). Your own and rendered mugshots stay." />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Text="Off: a mugshot is downloaded and saved the first time you open its NPC, then it shows straight away. On: all of them are downloaded now, so even the first click is instant." />
+                    <TextBlock Text="{Binding Main.FaceFinderPicturesStatus}" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding Main.FaceFinderPicturesStatus, Converter={StaticResource NullToCollapsed}}" />
+                </StackPanel>
+
+                <!-- 3: rendered -->
+                <TextBlock Grid.Row="2" Text="3  Render missing" VerticalAlignment="Top" Margin="0,18,0,0" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,14,0,0">
+                    <ComboBox ItemsSource="{Binding GeneratorOptions}" SelectedItem="{Binding Generator}"
+                              DisplayMemberPath="Label" MaxWidth="300" HorizontalAlignment="Left" MinWidth="240"
+                              ToolTip="Internal renderer needs a graphics card" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Text="Only faces with no mugshot and no FaceFinder mugshot are rendered, in the background. A face that fails isn't tried again until &quot;Generate mugshots again&quot;." />
+                </StackPanel>
+
+                <Button Grid.Row="3" Grid.Column="1" Content="Generate mugshots again" Command="{Binding RegeneratePicturesCommand}"
+                        HorizontalAlignment="Left" Margin="0,10,0,0"
+                        ToolTip="Deletes the mugshots the selected renderer made and renders them again, failed ones included. Your own and FaceFinder mugshots stay." />
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

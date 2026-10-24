@@ -1,0 +1,129 @@
+﻿<UserControl x:Class="NpcFaceManager.App.Views.NpcChooserView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" MinWidth="240" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: search on top, then the NPC list -->
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="Search NPCs by name, editor ID or form ID..." Padding="6,5" />
+                <DockPanel Margin="0,6,0,0">
+                    <CheckBox DockPanel.Dock="Right" Content="Show disabled" IsChecked="{Binding ShowDisabledOverhauls}" VerticalAlignment="Center" Margin="8,0,0,0"
+                              ToolTip="Also list face mods that are disabled in your mod list" />
+                    <ComboBox ItemsSource="{Binding ModFilters}" SelectedItem="{Binding ModFilter}" ToolTip="Only show NPCs this face mod has a face for" />
+                </DockPanel>
+                <CheckBox Content="Show NPCs with only one face" IsChecked="{Binding ShowSingleLook}" Margin="0,6,0,0" />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding View}" SelectedItem="{Binding SelectedNpc}" BorderBrush="{StaticResource BorderBrush}"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="Padding" Value="6,4" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center"
+                                           Text="{Binding LookCountText}" />
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding ChoiceText}" Foreground="{StaticResource AccentBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+        <!-- Right: the available looks for the selected NPC -->
+        <DockPanel Grid.Column="2" Margin="8,0,0,0">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" ToolTip="Mugshot size">
+                    <TextBlock Text="Size" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider Width="140" Minimum="120" Maximum="400" Value="{Binding PictureSize}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="{Binding SelectedNpc.DisplayName}" Style="{StaticResource Title}"
+                               ToolTip="Click a mugshot to choose that face. Right-click for more." />
+                    <TextBlock Text="{Binding SelectedNpc.Details}" Style="{StaticResource Muted}" />
+                </StackPanel>
+            </DockPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Tiles}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="Card" Width="{Binding DataContext.PictureSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Margin="0,0,12,12" CornerRadius="6" BorderThickness="2"
+                                    BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}" Cursor="Hand">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick" Command="{Binding SelectCommand}" />
+                                </Border.InputBindings>
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Use this mod for all its NPCs" Command="{Binding UseForAllCommand}" />
+                                        <MenuItem Header="Link a mugshot folder to this mod..." Command="{Binding LinkMugshotFolderCommand}" />
+                                        <MenuItem Header="Open the mod's page" Command="{Binding OpenModPageCommand}"
+                                                  Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <StackPanel>
+                                    <Grid Height="{Binding DataContext.PictureSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Background="{StaticResource PictureBackBrush}">
+                                        <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                        <TextBlock Text="{Binding PictureStatus}" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Visibility="{Binding PictureStatus, Converter={StaticResource NullToCollapsed}}" />
+                                    </Grid>
+                                    <StackPanel Margin="8,6,8,8">
+                                        <TextBlock Text="{Binding ModName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolTip}" />
+                                        <TextBlock x:Name="CaptionText" Text="{Binding Caption}" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                    <Setter TargetName="CaptionText" Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                    <Setter TargetName="CaptionText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                    <Setter TargetName="Card" Property="ToolTip" Value="{Binding ToolTip}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Card" Property="BorderThickness" Value="3" />
+                                    <Setter TargetName="Card" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+
+        <DockPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Next" Command="{Binding NextCommand}" Padding="18,7" />
+            <Button DockPanel.Dock="Left" Content="Reset all picks" Command="{Binding ResetPicksCommand}" Margin="0"
+                    ToolTip="Puts every NPC back on the face the game shows now, as before you picked anything (asks first)" />
+            <Button DockPanel.Dock="Left" Content="Reset pick" Command="{Binding ResetPickCommand}" Margin="8,0,0,0"
+                    ToolTip="Puts the selected NPC back on the face the game shows now" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding PictureProgress}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+            <TextBlock DockPanel.Dock="Right" Text="{Binding DataContext.FaceFinderStatus, RelativeSource={RelativeSource AncestorType=Window}}"
+                       Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+        </DockPanel>
+    </Grid>
+</UserControl>

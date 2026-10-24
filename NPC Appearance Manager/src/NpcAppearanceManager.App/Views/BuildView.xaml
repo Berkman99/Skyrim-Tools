@@ -1,0 +1,135 @@
+<UserControl x:Class="NpcFaceManager.App.Views.BuildView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Build options and results on top; the list of what happens to each mod fills the rest and scrolls on its own. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel x:Name="Options" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="Build" Style="{StaticResource Title}" />
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" />
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Mod name" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding OutputModName, UpdateSourceTrigger=PropertyChanged}" MaxWidth="420" HorizontalAlignment="Left" MinWidth="320"
+                         ToolTip="{Binding OutputFolder}" />
+                <TextBlock Grid.Row="1" Text="Plugin name" VerticalAlignment="Center" Margin="0,8,0,0" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBox Text="{Binding OutputPluginName, UpdateSourceTrigger=PropertyChanged}" Width="320" />
+                    <TextBlock Text=".esp" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <CheckBox Content="Disable merged mods after build" IsChecked="{Binding AutoDisable}" Margin="0,16,0,0"
+                      ToolTip="Disables the merged mods in your MO2 profile and enables the NAM merge. Backups of the mod and plugin lists are made first."
+                      Visibility="{Binding IsMo2, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Picked looks from mods that aren't installed: the build waits for them -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding ToInstall.Count, Converter={StaticResource NullToCollapsed}}">
+                <TextBlock Text="Install these first" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"
+                           ToolTip="You picked faces from these mods, but they aren't installed. Install them in MO2, then open this tool again. Your picks stay." />
+                <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                    <ItemsControl ItemsSource="{Binding ToInstall}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2,0,6">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="Open page" Command="{Binding OpenCommand}" Margin="12,0,0,0" Padding="8,2"
+                                            Visibility="{Binding HasUrl, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Details}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                    </DockPanel>
+                                    <!-- The NPCs you picked a look from this mod for -->
+                                    <TextBlock Text="{Binding NpcList}" Style="{StaticResource Muted}" FontSize="11" Margin="12,2,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                <Button Content="Back" Command="{Binding BackCommand}" Margin="0" />
+                <Button Content="Build" Style="{StaticResource PrimaryButton}" Command="{Binding BuildCommand}" Padding="22,7" Margin="8,0,0,0" />
+                <TextBlock Text="{Binding ProgressText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <TextBlock Text="Install the mods listed above first." Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" Margin="12,0,0,0"
+                           Visibility="{Binding ToInstall.Count, Converter={StaticResource NullToCollapsed}}" />
+            </StackPanel>
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,8,0,0" Visibility="{Binding IsBuilding, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Results (which mods were merged is shown in the list below) -->
+            <StackPanel Margin="0,16,0,0" Visibility="{Binding Report, Converter={StaticResource NullToCollapsed}}">
+                <TextBlock Text="{Binding ResultHeadline}" FontWeight="SemiBold" Foreground="{StaticResource GoodBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Mo2Message}" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                           Visibility="{Binding Mo2Message, Converter={StaticResource NullToCollapsed}}" />
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button Content="Copy list" Command="{Binding CopyListCommand}" Margin="0" ToolTip="Copy the merged mods to the clipboard" />
+                    <Button Content="Open folder" Command="{Binding OpenOutputFolderCommand}" Margin="8,0,0,0" ToolTip="{Binding OutputFolder}" />
+                </StackPanel>
+                <Expander Header="Masters" Margin="0,10,0,0" ToolTip="Plugins the NAM merge uses. They stay enabled.">
+                    <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding StillNeeded}" Margin="16,4,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Muted}" /></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
+                <Expander Margin="0,6,0,0" Visibility="{Binding Warnings.Count, Converter={StaticResource NullToCollapsed}}">
+                    <Expander.Header>
+                        <TextBlock Foreground="{StaticResource WarningBrush}">
+                            <Run Text="Notes" /> (<Run Text="{Binding Warnings.Count, Mode=OneWay}" />)
+                        </TextBlock>
+                    </Expander.Header>
+                    <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Warnings}" Margin="16,4,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,2" /></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- What happens to the mods the build touches: merged first, then the ones that stay on. As wide as the options. -->
+        <DockPanel Grid.Row="1" Margin="0,20,0,0" HorizontalAlignment="Left" Width="{Binding ActualWidth, ElementName=Options}">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <TextBlock Text="Mods" Style="{StaticResource Title}" />
+                <TextBlock Text="{Binding PlannedSummary}" Style="{StaticResource Muted}"
+                           ToolTip="Each face mod is merged and switched off, or left on, whichever leaves less in the NAM merge. Hover a mod to see why." />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Planned}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel ToolTip="{Binding ToolTip}" Background="Transparent">
+                            <TextBlock x:Name="Status" DockPanel.Dock="Right" Text="{Binding Status}" FontSize="11" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Group}" Value="Merged">
+                                <Setter TargetName="Status" Property="Foreground" Value="{StaticResource GoodBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Group}" Value="StaysOn">
+                                <Setter TargetName="Status" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+    </Grid>
+</UserControl>
