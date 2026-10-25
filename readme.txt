@@ -1,3 +1,3 @@
 # Skyrim Tools
 
-Tools for modding Skyrim Special Edition.
+Berkman tools for modding Skyrim.
