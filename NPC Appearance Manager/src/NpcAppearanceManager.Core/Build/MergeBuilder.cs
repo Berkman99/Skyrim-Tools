@@ -218,6 +218,7 @@ public static class MergeBuilder
             if (++n % 50 == 0) progress?.Report($"Writing NPC {n} of {request.Index.Npcs.Count}...");
             var npcKey = entry.FormKey;
             request.Choices.TryGetValue(npcKey, out var look);
+            if (look == null && entry.Looks.Count == 0) continue; // no mod gives it a face and nothing is picked: nothing to write
 
             var all = linkCache.ResolveAllContexts<INpc, INpcGetter>(npcKey).ToList();
             var contexts = all.Where(c => activeSet.Contains(c.ModKey)).ToList();
@@ -669,7 +670,7 @@ public static class MergeBuilder
         var switchedOff = plan.FullMods.Where(m => m.Mod.CountsAsEnabled)
             .SelectMany(m => m.Plugins.Select(p => ModKey.FromFileName(p.FileName))).ToHashSet();
         if (switchedOff.Count == 0) return;
-        var npcsWithLooks = request.Index.Npcs.Select(n => n.FormKey).ToHashSet();
+        var npcsWithLooks = request.Index.Npcs.Where(n => n.Looks.Count > 0).Select(n => n.FormKey).ToHashSet();
         var done = new HashSet<FormKey>();
         int failures = 0;
 

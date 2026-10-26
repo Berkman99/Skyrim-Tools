@@ -6,6 +6,9 @@ using NpcAppearanceManager.Core.Build;
 
 namespace NpcAppearanceManager.Core.Environment;
 
+/// <summary>How the mods are installed: each mod in its own folder (MO2, Vortex), or all copied into Data.</summary>
+public enum ModManager { Mo2, Vortex, None }
+
 /// <summary>An installed mod folder (or the game's Data folder when not using MO2).</summary>
 public sealed class ModFolder
 {
@@ -16,6 +19,21 @@ public sealed class ModFolder
     public required int Priority { get; init; }
 
     public bool IsGameDataFolder { get; init; }
+
+    /// <summary>"Loose faces in Data" (no manager): loose face files in Data that no plugin's NPC edit claims.</summary>
+    public bool IsLooseFaces { get; init; }
+
+    /// <summary>Loose face files in this folder aren't its own: Skyrim's Data folder with Vortex or no manager, where they come from mods.</summary>
+    public bool IgnoreLooseFaces { get; init; }
+
+    /// <summary>
+    /// No manager, with the NAM merge in Data: its files (Data-relative, any case) aren't the mods', so they're read from the
+    /// backup of the file they replaced, or skipped (null) when they replaced nothing.
+    /// </summary>
+    public IReadOnlyDictionary<string, string?>? LooseReplacements { get; init; }
+
+    /// <summary>The Nexus mod number when the manager keeps it elsewhere (Vortex: in the folder name).</summary>
+    public int? KnownNexusId { get; init; }
 
     /// <summary>Ticked in the MO2 profile right now.</summary>
     public bool IsEnabled { get; init; } = true;
@@ -30,7 +48,7 @@ public sealed class ModFolder
     public required IReadOnlyList<string> TopLevelFiles { get; init; }
 
     /// <summary>The Nexus mod id MO2 saved in the folder's meta.ini ("modid="), or null when there is none.</summary>
-    public int? NexusId => (_nexusId ??= new Lazy<int?>(() => ReadNexusId(Path))).Value;
+    public int? NexusId => KnownNexusId ?? (_nexusId ??= new Lazy<int?>(() => ReadNexusId(Path))).Value;
     private Lazy<int?>? _nexusId;
 
     internal static int? ReadNexusId(string folder)
@@ -105,6 +123,15 @@ public sealed class GameSetup
     private HashSet<string>? _active;
 
     public bool IsMo2 => Mo2 != null;
+
+    public ModManager Manager { get; init; } = ModManager.Mo2;
+    public bool IsVortex => Manager == ModManager.Vortex;
+
+    /// <summary>No mod manager: every mod was copied into Data.</summary>
+    public bool IsNoManager => Manager == ModManager.None;
+
+    /// <summary>No manager: the NAM merge NAM copied into Data, if it's there.</summary>
+    public Build.DataInstall? DataInstall { get; set; }
 
     public string? ResolvePluginPath(string fileName) => _pluginPaths.GetValueOrDefault(fileName);
 
@@ -192,21 +219,175 @@ public sealed class GameSetup
         return setup;
     }
 
-    public static GameSetup FromGameFolder(string gameFolder, string howFound)
+    /// <summary>The game's own plugin list, which Vortex writes (and which the game reads without a mod manager).</summary>
+    private static string GamePluginsFolder => System.IO.Path.Combine(
+        System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "Skyrim Special Edition");
+
+    /// <summary>
+    /// Vortex: each mod is its own folder in Vortex's mods folder, as with MO2. The ones Vortex deployed are on (that's
+    /// the active Vortex profile); which mod wins a file is what Vortex deployed.
+    /// </summary>
+    public static GameSetup FromVortex(string gameFolder, string howFound)
     {
-        var appData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
-        var pluginsDir = System.IO.Path.Combine(appData, "Skyrim Special Edition");
+        var deployment = Vortex.ReadDeployment(gameFolder)
+            ?? throw new InvalidOperationException("Vortex hasn't deployed any mods to this Skyrim game folder yet. Deploy your mods in Vortex once, then NAM finds them.");
+        var deployed = deployment.Files.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var folders = Directory.GetDirectories(deployment.StagingPath)
+            .Where(d => !System.IO.Path.GetFileName(d).StartsWith("__", StringComparison.Ordinal)).ToList();
+
+        // An earlier NAM merge, installed and deployed by Vortex.
+        ModFolder? previousOutput = null;
+        MergeMarker? marker = null;
+        foreach (var path in folders.Where(f => deployed.Contains(System.IO.Path.GetFileName(f)) && MergeMarker.IsOutputFolder(f)))
+        {
+            marker = MergeMarker.TryRead(path);
+            previousOutput = new ModFolder { Name = System.IO.Path.GetFileName(path), Path = path, Priority = 0, TopLevelFiles = ListTopLevelFiles(path) };
+            break;
+        }
+        var disabledByMerge = new HashSet<string>(marker?.DisabledMods ?? [], StringComparer.OrdinalIgnoreCase);
+
+        // Names without Vortex's version and date; a name two folders share keeps the folder name.
+        var mods = folders.Where(f => !MergeMarker.IsOutputFolder(f))
+            .Select(f => (Path: f, Folder: System.IO.Path.GetFileName(f), Clean: Vortex.CleanName(System.IO.Path.GetFileName(f)))).ToList();
+        var taken = mods.GroupBy(m => m.Clean.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var priorities = VortexPriorities(mods.Select(m => (m.Path, m.Folder)).ToList(), deployment);
+
+        var all = mods.Select(m =>
+        {
+            bool enabled = deployed.Contains(m.Folder);
+            var name = taken.Contains(m.Clean.Name) ? m.Folder : m.Clean.Name;
+            return new ModFolder
+            {
+                Name = name,
+                Path = m.Path,
+                Priority = priorities[m.Folder],
+                IsEnabled = enabled,
+                DisabledByMerge = !enabled && disabledByMerge.Contains(name),
+                TopLevelFiles = ListTopLevelFiles(m.Path),
+                KnownNexusId = m.Clean.NexusId,
+            };
+        }).OrderByDescending(m => m.Priority).ToList();
+
         var setup = new GameSetup
         {
             GameFolder = gameFolder,
             DataFolder = System.IO.Path.Combine(gameFolder, "Data"),
+            Manager = ModManager.Vortex,
             HowFound = howFound,
-            AllMods = [],
-            LoadOrder = BuildLoadOrder(gameFolder, ProfileFiles.ReadPlugins(pluginsDir), null),
+            AllMods = all,
+            PreviousOutput = previousOutput,
+            PreviousMarker = marker,
+            LoadOrder = BuildLoadOrder(gameFolder, ProfileFiles.ReadPlugins(GamePluginsFolder), marker),
+        };
+        // Enabled mods' plugins, then what's in Data (the game's own), then disabled mods' (only read for looks).
+        foreach (var mod in all.Where(m => m.CountsAsEnabled))
+            foreach (var plugin in mod.Plugins)
+                if (setup._pluginPaths.TryAdd(plugin, System.IO.Path.Combine(mod.Path, plugin)))
+                    setup._pluginOwners[plugin] = mod;
+        setup.AddDataFolderPlugins();
+        foreach (var mod in all.Where(m => !m.CountsAsEnabled))
+            foreach (var plugin in mod.Plugins)
+                if (setup._pluginPaths.TryAdd(plugin, System.IO.Path.Combine(mod.Path, plugin)))
+                    setup._pluginOwners[plugin] = mod;
+        return setup;
+    }
+
+    /// <summary>
+    /// A priority for each Vortex mod (higher wins): a mod whose file Vortex deployed over another mod's copy ranks
+    /// above it. Only top-level files and face files are compared, which is all a priority is used for. Deployed mods
+    /// rank above the rest.
+    /// </summary>
+    private static Dictionary<string, int> VortexPriorities(List<(string Path, string Folder)> mods, Vortex.Deployment deployment)
+    {
+        var deployed = deployment.Files.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var beats = new List<(string Winner, string Loser)>();
+        foreach (var (path, folder) in mods.Where(m => deployed.Contains(m.Folder)))
+        {
+            IEnumerable<string> files = ListTopLevelFiles(path);
+            foreach (var faceFolder in new[] { Scanning.FaceGenPaths.GeomFolder, Scanning.FaceGenPaths.TintFolder })
+            {
+                var root = System.IO.Path.Combine(path, faceFolder);
+                if (Directory.Exists(root))
+                    files = files.Concat(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Select(f => System.IO.Path.GetRelativePath(path, f)));
+            }
+            foreach (var rel in files)
+                if (deployment.Files.TryGetValue(rel, out var winner) && !winner.Equals(folder, StringComparison.OrdinalIgnoreCase))
+                    beats.Add((winner, folder));
+        }
+        beats = beats.Distinct().ToList();
+
+        var rank = mods.ToDictionary(m => m.Folder, _ => 0, StringComparer.OrdinalIgnoreCase);
+        for (int round = 0; round < mods.Count; round++)
+        {
+            bool changed = false;
+            foreach (var (winner, loser) in beats)
+                if (rank.ContainsKey(winner) && rank[winner] <= rank[loser]) { rank[winner] = rank[loser] + 1; changed = true; }
+            if (!changed) break;
+        }
+        var ordered = mods.OrderBy(m => deployed.Contains(m.Folder)).ThenBy(m => rank[m.Folder])
+            .ThenByDescending(m => m.Folder, StringComparer.OrdinalIgnoreCase).ToList();
+        return ordered.Select((m, i) => (m.Folder, i + 1)).ToDictionary(x => x.Folder, x => x.Item2, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// No mod manager: everything sits in Data, so each active plugin (with the archives loaded for it) is a "mod".
+    /// Loose face files in Data come from mods too; NPC reading gives each to the plugin that changes that NPC, the
+    /// rest go under "Loose faces in Data". The NAM merge NAM put in Data is read as if it wasn't there.
+    /// </summary>
+    public static GameSetup FromGameFolder(string gameFolder, string howFound)
+    {
+        var dataFolder = System.IO.Path.Combine(gameFolder, "Data");
+        var install = Build.DataInstall.Read(dataFolder);
+        var marker = install == null ? null : new MergeMarker { Plugin = install.Plugin };
+        var loadOrder = BuildLoadOrder(gameFolder, ProfileFiles.ReadPlugins(GamePluginsFolder), marker);
+        var replacements = install?.Replacements();
+
+        var dataFiles = ListTopLevelFiles(dataFolder);
+        var pseudo = new List<ModFolder>();
+        int priority = loadOrder.Count + 1;
+        foreach (var plugin in loadOrder.Select(k => k.FileName.String))
+        {
+            priority--;
+            // Skyrim, Update, the DLCs and Creation Club are the game itself: their faces are the originals.
+            if (Scanning.OriginalSources.IsGamePlugin(plugin)) continue;
+            pseudo.Add(new ModFolder
+            {
+                Name = plugin,
+                Path = dataFolder,
+                Priority = priority,
+                IsGameDataFolder = true,
+                LooseReplacements = replacements,
+                TopLevelFiles = dataFiles.Where(f => f.Equals(plugin, StringComparison.OrdinalIgnoreCase) ||
+                                                     (f.EndsWith(".bsa", StringComparison.OrdinalIgnoreCase) && Scanning.ArchiveHelper.IsOwnedBy(f, plugin))).ToList(),
+            });
+        }
+        pseudo.Add(new ModFolder
+        {
+            Name = LooseFacesName,
+            Path = dataFolder,
+            Priority = 0,
+            IsGameDataFolder = true,
+            IsLooseFaces = true,
+            LooseReplacements = replacements,
+            TopLevelFiles = [],
+        });
+
+        var setup = new GameSetup
+        {
+            GameFolder = gameFolder,
+            DataFolder = dataFolder,
+            Manager = ModManager.None,
+            HowFound = howFound,
+            AllMods = pseudo,
+            DataInstall = install,
+            LoadOrder = loadOrder,
         };
         setup.AddDataFolderPlugins();
         return setup;
     }
+
+    public const string LooseFacesName = "Loose faces in Data";
 
     private void AddDataFolderPlugins()
     {

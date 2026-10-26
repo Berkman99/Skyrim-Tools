@@ -45,10 +45,30 @@ public partial class SettingsViewModel : ObservableObject
 
     public bool LaunchedFromMo2 => _main.Setup?.HowFound == "Launched from Mod Organizer 2";
 
+    public IReadOnlyList<ManagerOption> ManagerOptions { get; } =
+    [
+        new(ModManager.Mo2, "Mod Organizer 2"),
+        new(ModManager.Vortex, "Vortex"),
+        new(ModManager.None, "No manager"),
+    ];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMo2Selected))]
+    private ManagerOption _manager;
+
+    /// <summary>MO2 shows its instance and profile; Vortex and no manager show the Skyrim game folder.</summary>
+    public bool IsMo2Selected => Manager.Kind == ModManager.Mo2;
+
+    /// <summary>No manager, with the NAM merge in Data: "Remove NAM merge".</summary>
+    public bool CanRemoveNamMerge => _main.Setup is { IsNoManager: true, DataInstall: not null };
+
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
         _generator = GeneratorOptions[0];
+        _manager = ManagerOptions[0];
+        _reloadTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        _reloadTimer.Tick += async (_, _) => { _reloadTimer.Stop(); await ReloadIfChangedAsync(); };
     }
 
     private bool _refreshing;
@@ -94,8 +114,41 @@ public partial class SettingsViewModel : ObservableObject
         _main.Chooser?.RestartPictureJob();
     }
 
-    partial void OnMo2ProfileChanged(string? value) => Persist();
-    partial void OnGameFolderChanged(string? value) => Persist();
+    partial void OnMo2ProfileChanged(string? value) { Persist(); ReloadSoon(); }
+    partial void OnGameFolderChanged(string? value) { Persist(); ReloadSoon(); }
+
+    partial void OnManagerChanged(ManagerOption value)
+    {
+        if (_refreshing) return;
+        _main.Settings.Manager = value.Kind;
+        _main.SaveSettings();
+        ReloadSoon();
+    }
+
+    // Changing the mod manager, MO2 instance or profile, or game folder reloads everything by itself: shortly after
+    // the last change (typing a path changes it on every key), once what's set can actually be read.
+    private readonly System.Windows.Threading.DispatcherTimer _reloadTimer;
+    private string? _loadedWith;
+
+    private void ReloadSoon()
+    {
+        if (_refreshing) return;
+        _reloadTimer.Stop();
+        _reloadTimer.Start();
+    }
+
+    private string SetupChoice => $"{_main.Manager}|{_main.Settings.Mo2IniPath}|{_main.Settings.Mo2Profile}|{_main.Settings.GameFolder}";
+
+    private async Task ReloadIfChangedAsync()
+    {
+        var s = _main.Settings;
+        bool readable = _main.Manager == ModManager.Mo2
+            ? s.Mo2IniPath != null && File.Exists(s.Mo2IniPath)
+            : s.GameFolder == null || File.Exists(Path.Combine(s.GameFolder, "Data", "Skyrim.esm"));
+        if (!readable || SetupChoice == _loadedWith || _main.BusyMessage != null) return;
+        await _main.ReloadAsync();
+        Refresh();
+    }
 
     private void Persist(bool generatorChanged = false, bool picturesChanged = false)
     {
@@ -131,13 +184,17 @@ public partial class SettingsViewModel : ObservableObject
         LoadProfiles();
         Mo2Profile = _main.Setup?.ProfileName ?? s.Mo2Profile ?? Profiles.FirstOrDefault();
         Status = _main.SetupDescription;
+        Manager = ManagerOptions.First(o => o.Kind == _main.Manager);
+        _loadedWith = SetupChoice;
         OnPropertyChanged(nameof(LaunchedFromMo2));
+        OnPropertyChanged(nameof(CanRemoveNamMerge));
     }
 
     partial void OnMo2IniPathChanged(string? value)
     {
         LoadProfiles();
         Persist();
+        ReloadSoon();
     }
 
     private void LoadProfiles()
@@ -237,12 +294,23 @@ public partial class SettingsViewModel : ObservableObject
         if (d.ShowDialog() == true) MugshotsFolder = d.FolderName;
     }
 
-    /// <summary>Re-reads the setup after changing the MO2 instance, profile or game folder (settings are already saved).</summary>
+    /// <summary>No manager: takes the NAM merge out of Data again (after asking), putting back what it replaced.</summary>
     [RelayCommand]
-    private async Task ReloadSetupAsync()
+    private async Task RemoveNamMergeAsync()
     {
-        Persist();
-        await _main.InitializeAsync();
+        if (_main.Setup?.DataInstall is not { } install) return;
+        var answer = System.Windows.MessageBox.Show(System.Windows.Application.Current.MainWindow!,
+            "Remove the NAM merge from your Data folder? The face files it replaced are put back and its plugin is turned off.",
+            AppSettings.AppName, System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+        if (answer != System.Windows.MessageBoxResult.Yes) return;
+        await _main.RunBusyAsync("Removing the NAM merge from Data...", progress => Task.Run(() => install.Remove(progress)));
+        await _main.ReloadAsync();
+        Refresh();
     }
+}
+
+public sealed record ManagerOption(ModManager Kind, string Label)
+{
+    public override string ToString() => Label;
 }
 

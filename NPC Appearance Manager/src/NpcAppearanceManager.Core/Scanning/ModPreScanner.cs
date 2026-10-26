@@ -41,7 +41,7 @@ public static class ModPreScanner
 {
     public static IReadOnlyList<ModSummary> Scan(GameSetup setup, IProgress<string>? progress = null, CancellationToken ct = default)
     {
-        var folders = setup.IsMo2 ? setup.AllMods : DataFolderPseudoMods(setup);
+        var folders = setup.AllMods;
         var results = new ConcurrentBag<ModSummary>();
         int done = 0;
 
@@ -74,7 +74,7 @@ public static class ModPreScanner
             foreach (var pluginDir in Directory.EnumerateDirectories(geomRoot))
             {
                 var pluginName = Path.GetFileName(pluginDir);
-                if (mod.IsGameDataFolder && !mod.Plugins.Contains(pluginName, StringComparer.OrdinalIgnoreCase)) continue;
+                if (mod.IsGameDataFolder && !mod.IsLooseFaces && !mod.Plugins.Contains(pluginName, StringComparer.OrdinalIgnoreCase)) continue;
                 int n = Directory.EnumerateFiles(pluginDir, "*.nif").Count();
                 if (n == 0) continue;
                 faceCount += n;
@@ -96,6 +96,11 @@ public static class ModPreScanner
                 inArchives = true;
             }
         }
+
+        // No manager: a plugin that edits NPCs may own loose faces in Data for them (NPC reading decides which).
+        if (faceCount == 0 && mod.IsGameDataFolder && !mod.IsLooseFaces && setup.IsNoManager && plugins.Any(p => p.HasNpcRecords) &&
+            Directory.Exists(geomRoot) && Directory.EnumerateDirectories(geomRoot).Any())
+            return new ModSummary { Mod = mod, Kind = ModKind.FacesAndPlugin, Plugins = plugins, FaceFileCount = 0, FacesInArchives = false, FacePlugins = [] };
 
         var kind = faceCount == 0 ? ModKind.Other
             : plugins.Any(p => p.HasNpcRecords) ? ModKind.FacesAndPlugin
@@ -135,26 +140,4 @@ public static class ModPreScanner
         }
     }
 
-    /// <summary>Without MO2 everything sits in Data, so each plugin becomes its own row.</summary>
-    private static IReadOnlyList<ModFolder> DataFolderPseudoMods(GameSetup setup)
-    {
-        var dataFiles = GameSetup.ListTopLevelFiles(setup.DataFolder);
-        var result = new List<ModFolder>();
-        int priority = setup.LoadOrder.Count;
-        foreach (var key in setup.LoadOrder)
-        {
-            var plugin = key.FileName.String;
-            if (PluginNames.IsBaseMaster(plugin)) { priority--; continue; }
-            result.Add(new ModFolder
-            {
-                Name = plugin,
-                Path = setup.DataFolder,
-                Priority = priority--,
-                IsGameDataFolder = true,
-                TopLevelFiles = dataFiles.Where(f => f.Equals(plugin, StringComparison.OrdinalIgnoreCase) ||
-                                                     (f.EndsWith(".bsa", StringComparison.OrdinalIgnoreCase) && ArchiveHelper.IsOwnedBy(f, plugin))).ToList(),
-            });
-        }
-        return result;
-    }
 }

@@ -35,12 +35,18 @@ public sealed class ProfileSelections
     /// <summary>Copy faces' last NPC 1 and NPC 2 (FormKey text).</summary>
     public string? LastCopyTarget { get; set; }
     public string? LastCopySource { get; set; }
+
+    /// <summary>No manager: FaceFinder mods (FaceFinder ids) you said you copied into Data.</summary>
+    public List<int> InstalledByHand { get; set; } = [];
 }
 
 /// <summary>Settings saved next to the program as NpcAppearanceManager.settings.json.</summary>
 public sealed class AppSettings
 {
     public const string AppName = "NPC Appearance Manager";
+
+    /// <summary>The mod manager picked on first start ("Select Mod Manager"); null until then.</summary>
+    public Environment.ModManager? Manager { get; set; }
 
     public string? Mo2IniPath { get; set; }
     public string? Mo2Profile { get; set; }

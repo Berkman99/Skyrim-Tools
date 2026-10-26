@@ -17,7 +17,7 @@ public static class Mo2Detector
         var fromArgs = FromArguments(args);
         if (fromArgs != null) return fromArgs;
 
-        var mo2Exe = FindAncestorMo2Executable();
+        var mo2Exe = FindAncestor("ModOrganizer.exe");
         if (mo2Exe != null)
         {
             var exeDir = Path.GetDirectoryName(mo2Exe)!;
@@ -67,8 +67,11 @@ public static class Mo2Detector
         return File.Exists(portableIni) ? portableIni : null;
     }
 
-    /// <summary>Walks up the parent-process chain looking for ModOrganizer.exe.</summary>
-    private static string? FindAncestorMo2Executable()
+    /// <summary>Whether this program was opened from Vortex (as one of its tools).</summary>
+    public static bool LaunchedFromVortex() => FindAncestor("Vortex.exe") != null;
+
+    /// <summary>Walks up the parent-process chain looking for a program (e.g. ModOrganizer.exe).</summary>
+    private static string? FindAncestor(string exeName)
     {
         try
         {
@@ -78,7 +81,7 @@ public static class Mo2Detector
                 int parent = GetParentProcessId(pid);
                 if (parent <= 0) return null;
                 var path = GetProcessPath(parent);
-                if (path != null && Path.GetFileName(path).Equals("ModOrganizer.exe", StringComparison.OrdinalIgnoreCase))
+                if (path != null && Path.GetFileName(path).Equals(exeName, StringComparison.OrdinalIgnoreCase))
                     return path;
                 pid = parent;
             }

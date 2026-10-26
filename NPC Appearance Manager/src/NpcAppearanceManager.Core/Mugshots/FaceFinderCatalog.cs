@@ -61,7 +61,9 @@ public sealed class FaceFinderCatalog
         var list = installed as IReadOnlyCollection<ModFolder> ?? installed.ToList();
         if (mod.NexusId is { } nexus && list.FirstOrDefault(m => m.NexusId == nexus) is { } byId) return byId;
         var name = Normalize(mod.Name);
-        return list.FirstOrDefault(m => Normalize(m.Name) == name);
+        // No manager: a plugin named like the mod ("Bijin Warmaidens.esp").
+        return list.FirstOrDefault(m => Normalize(m.Name) == name) ??
+               list.FirstOrDefault(m => m.IsGameDataFolder && Normalize(Path.GetFileNameWithoutExtension(m.Name)) == name);
     }
 
     /// <summary>

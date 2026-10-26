@@ -14,7 +14,7 @@
             <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" />
 
             <TextBlock Text="Setup" Style="{StaticResource Section}"
-                       ToolTip="Only needed when the tool isn't opened from Mod Organizer 2" />
+                       ToolTip="Changes here load everything again by themselves" />
             <Grid IsEnabled="{Binding LaunchedFromMo2, Converter={x:Static local:Negate.Instance}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="150" />
@@ -25,21 +25,39 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="MO2 instance" VerticalAlignment="Center" />
-                <TextBox Grid.Column="1" Text="{Binding Mo2IniPath, UpdateSourceTrigger=PropertyChanged}" Tag="ModOrganizer.ini" />
-                <Button Grid.Column="2" Content="Browse..." Command="{Binding BrowseMo2Command}" />
+                <TextBlock Text="Mod manager" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ManagerOptions}" SelectedItem="{Binding Manager}" DisplayMemberPath="Label"
+                          MaxWidth="300" HorizontalAlignment="Left" MinWidth="200" />
 
-                <TextBlock Grid.Row="1" Text="MO2 profile" VerticalAlignment="Center" Margin="0,8,0,0" />
-                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Mo2Profile}" Margin="0,8,0,0" MaxWidth="300" HorizontalAlignment="Left" MinWidth="200" />
+                <!-- Mod Organizer 2 -->
+                <TextBlock Grid.Row="1" Text="MO2 instance" VerticalAlignment="Center" Margin="0,8,0,0"
+                           Visibility="{Binding IsMo2Selected, Converter={StaticResource BoolToVisibility}}" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Mo2IniPath, UpdateSourceTrigger=PropertyChanged}" Tag="ModOrganizer.ini" Margin="0,8,0,0"
+                         Visibility="{Binding IsMo2Selected, Converter={StaticResource BoolToVisibility}}" />
+                <Button Grid.Row="1" Grid.Column="2" Content="Browse..." Command="{Binding BrowseMo2Command}" Margin="4,8,0,0"
+                        Visibility="{Binding IsMo2Selected, Converter={StaticResource BoolToVisibility}}" />
 
-                <TextBlock Grid.Row="2" Text="Skyrim folder" VerticalAlignment="Center" Margin="0,8,0,0" ToolTip="Only without MO2" />
-                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GameFolder, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0" Tag="Without MO2 only" />
-                <Button Grid.Row="2" Grid.Column="2" Content="Browse..." Command="{Binding BrowseGameCommand}" Margin="4,8,0,0" />
+                <TextBlock Grid.Row="2" Text="MO2 profile" VerticalAlignment="Center" Margin="0,8,0,0"
+                           Visibility="{Binding IsMo2Selected, Converter={StaticResource BoolToVisibility}}" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding Mo2Profile}" Margin="0,8,0,0" MaxWidth="300" HorizontalAlignment="Left" MinWidth="200"
+                          Visibility="{Binding IsMo2Selected, Converter={StaticResource BoolToVisibility}}" />
+
+                <!-- Vortex and no manager -->
+                <TextBlock Grid.Row="3" Text="Skyrim game folder" VerticalAlignment="Center" Margin="0,8,0,0"
+                           Visibility="{Binding IsMo2Selected, Converter={StaticResource InverseBoolToVisibility}}" />
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding GameFolder, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0" Tag="The folder with SkyrimSE.exe"
+                         Visibility="{Binding IsMo2Selected, Converter={StaticResource InverseBoolToVisibility}}" />
+                <Button Grid.Row="3" Grid.Column="2" Content="Browse..." Command="{Binding BrowseGameCommand}" Margin="4,8,0,0"
+                        Visibility="{Binding IsMo2Selected, Converter={StaticResource InverseBoolToVisibility}}" />
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Main.VortexWarning}" Foreground="{StaticResource WarningBrush}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding Main.VortexWarning, Converter={StaticResource NullToCollapsed}}" />
             </Grid>
-            <Button Content="Reload setup" Command="{Binding ReloadSetupCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"
-                    ToolTip="Use after changing the MO2 instance, profile or Skyrim folder"
-                    Visibility="{Binding LaunchedFromMo2, Converter={StaticResource InverseBoolToVisibility}}" />
+            <Button Content="Remove NAM merge" Command="{Binding RemoveNamMergeCommand}" Margin="0,10,0,0" HorizontalAlignment="Left"
+                    ToolTip="Takes the NAM merge out of your Data folder: the face files it replaced are put back and its plugin is turned off"
+                    Visibility="{Binding CanRemoveNamMerge, Converter={StaticResource BoolToVisibility}}" />
 
             <TextBlock Text="Mugshots" Style="{StaticResource Section}" />
             <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"

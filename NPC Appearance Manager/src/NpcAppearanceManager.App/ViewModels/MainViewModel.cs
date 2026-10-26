@@ -60,12 +60,45 @@ public partial class MainViewModel : ObservableObject
         SettingsPage = new SettingsViewModel(this);
     }
 
-    public string ProfileKey => Setup == null ? "" :
-        Setup.IsMo2 ? $"{Setup.Mo2!.IniPath}|{Setup.ProfileName}" : $"game|{Setup.GameFolder}";
+    public string ProfileKey => Setup == null ? "" : Setup.Manager switch
+    {
+        ModManager.Mo2 => $"{Setup.Mo2!.IniPath}|{Setup.ProfileName}",
+        ModManager.Vortex => $"vortex|{Setup.GameFolder}",
+        _ => $"game|{Setup.GameFolder}",
+    };
 
     public ProfileSelections Selections => Settings.ForProfile(ProfileKey);
 
+    /// <summary>The mod manager in use: MO2 when opened from it, else the one picked on first start.</summary>
+    public ModManager Manager => Mo2Detector.Detect(_args) != null ? ModManager.Mo2 : Settings.Manager ?? GuessManager();
+
+    /// <summary>The manager NAM can tell by itself, for the first-start window: the one it was opened from, else what's set up.</summary>
+    public ModManager GuessManager()
+    {
+        if (Mo2Detector.Detect(_args) != null) return ModManager.Mo2;
+        if (Mo2Detector.LaunchedFromVortex()) return ModManager.Vortex;
+        if (!string.IsNullOrWhiteSpace(Settings.Mo2IniPath) && File.Exists(Settings.Mo2IniPath)) return ModManager.Mo2;
+        return Vortex.IsInstalledForSkyrim ? ModManager.Vortex : ModManager.None;
+    }
+
+    /// <summary>"Deploy your mods in Vortex once..." when Vortex is picked but hasn't deployed to the game folder yet.</summary>
+    [ObservableProperty] private string? _vortexWarning;
+
     public async Task InitializeAsync()
+    {
+        // First start: "Select Mod Manager" before anything loads.
+        if (Settings.Manager == null && Mo2Detector.Detect(_args) == null)
+        {
+            var pick = new Views.ManagerPromptWindow(GuessManager()) { Owner = Application.Current.MainWindow };
+            pick.ShowDialog();
+            Settings.Manager = pick.Selected;
+            SaveSettings();
+        }
+        await ReloadAsync();
+    }
+
+    /// <summary>Reads the setup again and every mod with it (after the mod manager, instance, profile or game folder changed).</summary>
+    public async Task ReloadAsync()
     {
         if (!TryDetectSetup(out var problem))
         {
@@ -77,47 +110,76 @@ public partial class MainViewModel : ObservableObject
         if (Chooser == null) ShowPage(Page.Settings);
     }
 
-    /// <summary>Finds the setup without asking: MO2 that launched us, then saved choices, then the plain game.</summary>
+    /// <summary>Skyrim's game folder: the one you set, else the one Vortex knows (with Vortex), else the one Steam knows.</summary>
+    private string? FindGame(ModManager manager) =>
+        !string.IsNullOrWhiteSpace(Settings.GameFolder) ? Settings.GameFolder
+        : (manager == ModManager.Vortex ? Vortex.FindGameFolder() : null) ?? GameSetup.FindGameFolder() ?? Vortex.FindGameFolder();
+
+    /// <summary>Finds the setup of the mod manager in use without asking (MO2: the one that opened NAM, else the saved one).</summary>
     public bool TryDetectSetup(out string problem)
     {
         problem = "";
+        VortexWarning = null;
         try
         {
-            var detected = Mo2Detector.Detect(_args);
-            if (detected != null)
+            var manager = Manager;
+            if (manager == ModManager.Mo2)
             {
-                Setup = GameSetup.FromMo2(detected.Instance, detected.Profile, detected.HowFound);
-            }
-            else if (!string.IsNullOrWhiteSpace(Settings.Mo2IniPath) && File.Exists(Settings.Mo2IniPath))
-            {
-                var instance = Mo2Instance.Load(Settings.Mo2IniPath);
-                Setup = GameSetup.FromMo2(instance, Settings.Mo2Profile ?? instance.SelectedProfile, "Saved Mod Organizer 2 instance");
+                var detected = Mo2Detector.Detect(_args);
+                if (detected != null)
+                    Setup = GameSetup.FromMo2(detected.Instance, detected.Profile, detected.HowFound);
+                else if (!string.IsNullOrWhiteSpace(Settings.Mo2IniPath) && File.Exists(Settings.Mo2IniPath))
+                {
+                    var instance = Mo2Instance.Load(Settings.Mo2IniPath);
+                    Setup = GameSetup.FromMo2(instance, Settings.Mo2Profile ?? instance.SelectedProfile, "Saved Mod Organizer 2 instance");
+                }
+                else return Fail(out problem, "Open this program from Mod Organizer 2, or set your MO2 instance below.");
             }
             else
             {
-                var game = !string.IsNullOrWhiteSpace(Settings.GameFolder) ? Settings.GameFolder : GameSetup.FindGameFolder();
+                var game = FindGame(manager);
                 if (game == null || !File.Exists(Path.Combine(game, "Data", "Skyrim.esm")))
+                    return Fail(out problem, "Couldn't find Skyrim Special Edition. Set your Skyrim game folder below.");
+                if (Settings.GameFolder == null)
                 {
-                    problem = "Couldn't find Skyrim Special Edition. Open this program from Mod Organizer 2, or set your MO2 instance or game folder below.";
-                    return false;
+                    // Remembered, so the Settings page shows it and it's still known next time.
+                    Settings.GameFolder = game;
+                    SaveSettings();
                 }
-                Setup = GameSetup.FromGameFolder(game, string.IsNullOrWhiteSpace(Settings.GameFolder) ? "Found Skyrim automatically" : "Saved game folder");
+                if (manager == ModManager.Vortex && !Vortex.HasDeployed(game))
+                {
+                    VortexWarning = "Deploy your mods in Vortex once, then NAM finds them.";
+                    return Fail(out problem, "Vortex hasn't deployed any mods to this Skyrim game folder yet.");
+                }
+                Setup = manager == ModManager.Vortex
+                    ? GameSetup.FromVortex(game, Mo2Detector.LaunchedFromVortex() ? "Launched from Vortex" : "Vortex")
+                    : GameSetup.FromGameFolder(game, "No mod manager");
             }
         }
         catch (Exception ex)
         {
-            problem = "Couldn't read your setup: " + ex.Message;
-            Setup = null;
-            return false;
+            return Fail(out problem, "Couldn't read your setup: " + ex.Message);
         }
 
-        SetupDescription = Setup.IsMo2
-            ? $"Mod Organizer 2 · profile \"{Setup.ProfileName}\" · {Setup.AllMods.Count} mods ({Setup.AllMods.Count(m => m.IsEnabled)} enabled)  ({Setup.HowFound})"
-            : $"Skyrim at {Setup.GameFolder} (no mod manager)  ({Setup.HowFound})";
+        SetupDescription = Setup.Manager switch
+        {
+            ModManager.Mo2 => $"Mod Organizer 2 · profile \"{Setup.ProfileName}\" · {Setup.AllMods.Count} mods ({Setup.AllMods.Count(m => m.IsEnabled)} enabled)  ({Setup.HowFound})",
+            ModManager.Vortex => $"Vortex · active profile · {Setup.AllMods.Count} mods ({Setup.AllMods.Count(m => m.IsEnabled)} enabled)",
+            _ => $"No mod manager · Skyrim at {Setup.GameFolder}",
+        };
         ResetPlugins();
         UseOwnMugshotsFolder();
         Mugshots.Generator = SettingsPage.CreateGenerator(Setup);
         return true;
+    }
+
+    /// <summary>No usable setup: the steps close until it's fixed in Settings.</summary>
+    private bool Fail(out string problem, string message)
+    {
+        problem = message;
+        Setup = null;
+        ResetPlugins();
+        return false;
     }
 
     /// <summary>With no mugshot folder set (a fresh copy of the tool), the tool's own one in Mugshot Cache is used.</summary>
@@ -330,10 +392,51 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand] private void GoToNpcs() { if (Chooser != null) ShowPage(Page.Npcs); }
     [RelayCommand] private void GoToCopy() { if (CopyFaces != null) ShowPage(Page.Copy); }
     [RelayCommand] private void GoToBuild() { if (Build != null) ShowPage(Page.Build); }
-    [RelayCommand] private void GoToSettings() => ShowPage(Page.Settings);
+    private readonly List<DateTime> _settingsPresses = [];
+    private bool _wiped;
+
+    /// <summary>Settings. Pressed 5 times within 3 seconds: a fresh start (see <see cref="FreshStartAsync"/>).</summary>
+    [RelayCommand]
+    private async Task GoToSettings()
+    {
+        var now = DateTime.Now;
+        _settingsPresses.RemoveAll(t => now - t > TimeSpan.FromSeconds(3));
+        _settingsPresses.Add(now);
+        if (_settingsPresses.Count >= 5) { await FreshStartAsync(); return; }
+        ShowPage(Page.Settings);
+    }
+
+    /// <summary>
+    /// Wipes NAM as if newly installed and starts it again: every setting, pick, copy and name, FaceFinder's list, and
+    /// rendered mugshots with the renderer's cache. Downloaded FaceFinder mugshots, your own mugshots, a NAM merge in
+    /// Data (no manager) and its backups stay. Nothing is saved on the way out.
+    /// </summary>
+    private async Task FreshStartAsync()
+    {
+        _wiped = true;
+        _saveTimer?.Stop();
+        StopDownloadAll();
+        Chooser?.StopPictures();
+        _plugins?.Dispose();
+        _plugins = null;
+        await RunBusyAsync("Starting fresh...", _ => Task.Run(() =>
+        {
+            foreach (var file in new[] { AppSettings.FilePath, AppSettings.FilePath + ".tmp", AppSettings.FilePath + ".broken", FaceFinderCatalog.FilePath })
+                try { if (File.Exists(file)) File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (var folder in new[]
+                     {
+                         Path.Combine(AppSettings.CacheFolder, "Generated pictures"), Path.Combine(AppSettings.CacheFolder, "Extracted"),
+                         Path.Combine(AppSettings.AppFolder, "CharacterViewerCache"),
+                     })
+                try { if (Directory.Exists(folder)) Directory.Delete(folder, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }));
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(System.Environment.ProcessPath!, _args) { UseShellExecute = false });
+        Application.Current.Shutdown();
+    }
 
     public void Shutdown()
     {
+        if (_wiped) return; // a fresh start: nothing is saved
         StopDownloadAll();
         Chooser?.StopPictures();
         Chooser?.SaveChoices();

@@ -34,17 +34,22 @@
             <CheckBox Content="Disable merged mods after build" IsChecked="{Binding AutoDisable}" Margin="0,16,0,0"
                       ToolTip="Disables the merged mods in your MO2 profile and enables the NAM merge. Backups of the mod and plugin lists are made first."
                       Visibility="{Binding IsMo2, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock Text="{Binding ManagerNote}" Style="{StaticResource Muted}" Margin="0,16,0,0" TextWrapping="Wrap"
+                       Visibility="{Binding ManagerNote, Converter={StaticResource NullToCollapsed}}" />
 
             <!-- Picked looks from mods that aren't installed: the build waits for them -->
             <StackPanel Margin="0,16,0,0" Visibility="{Binding ToInstall.Count, Converter={StaticResource NullToCollapsed}}">
                 <TextBlock Text="Install these first" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"
-                           ToolTip="You picked faces from these mods, but they aren't installed. Install them in MO2, then open this tool again. Your picks stay." />
+                           ToolTip="You picked faces from these mods, but they aren't installed. Install them, then open this tool again. Your picks stay." />
                 <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
                     <ItemsControl ItemsSource="{Binding ToInstall}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="0,2,0,6">
                                     <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="I've installed it" Command="{Binding MarkInstalledCommand}" Margin="8,0,0,0" Padding="8,2"
+                                                ToolTip="You copied this mod into Data: these NPCs use the face that's in Data now"
+                                                Visibility="{Binding CanMarkInstalled, Converter={StaticResource BoolToVisibility}}" />
                                         <Button DockPanel.Dock="Right" Content="Open page" Command="{Binding OpenCommand}" Margin="12,0,0,0" Padding="8,2"
                                             Visibility="{Binding HasUrl, Converter={StaticResource BoolToVisibility}}" />
                                         <TextBlock DockPanel.Dock="Right" Text="{Binding Details}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
@@ -71,8 +76,19 @@
             <!-- Results (which mods were merged is shown in the list below) -->
             <StackPanel Margin="0,16,0,0" Visibility="{Binding Report, Converter={StaticResource NullToCollapsed}}">
                 <TextBlock Text="{Binding ResultHeadline}" FontWeight="SemiBold" Foreground="{StaticResource GoodBrush}" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding Mo2Message}" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                <TextBlock Text="{Binding Mo2Message}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
                            Visibility="{Binding Mo2Message, Converter={StaticResource NullToCollapsed}}" />
+                <!-- Vortex: the one-time restart for NAM's helper, then the mods to untick there -->
+                <TextBlock Text="{Binding VortexHelperNote}" Foreground="{StaticResource WarningBrush}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding VortexHelperNote, Converter={StaticResource NullToCollapsed}}" />
+                <TextBlock Text="{Binding VortexUntick}" Foreground="{StaticResource WarningBrush}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding VortexUntick, Converter={StaticResource NullToCollapsed}}" />
+                <ItemsControl ItemsSource="{Binding SafeToDisable}" Margin="16,6,0,0"
+                              Visibility="{Binding VortexUntick, Converter={StaticResource NullToCollapsed}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding}" /></DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                     <Button Content="Copy list" Command="{Binding CopyListCommand}" Margin="0" ToolTip="Copy the merged mods to the clipboard" />
                     <Button Content="Open folder" Command="{Binding OpenOutputFolderCommand}" Margin="8,0,0,0" ToolTip="{Binding OutputFolder}" />

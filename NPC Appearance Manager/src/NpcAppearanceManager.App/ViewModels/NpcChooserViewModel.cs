@@ -108,7 +108,8 @@ public partial class NpcRowViewModel : ObservableObject
     /// <summary>The FaceFinder faces shown for it (all, or only the picked one with "Hide mods not installed").</summary>
     public IEnumerable<OnlineLook> ShownOnline => HideNotInstalled ? Online.Where(o => o.ChoiceKey == ChosenMod) : Online;
 
-    public int LookCount => Entry.Looks.Count + ShownOnline.Count();
+    /// <summary>Its faces: mods' and FaceFinder's, or just the original for an NPC no mod changes.</summary>
+    public int LookCount => Math.Max(1, Entry.Looks.Count + ShownOnline.Count() + (Entry.Looks.Count == 0 ? 1 : 0));
     public string LookCountText => LookCount == 1 ? "1 face" : $"{LookCount} faces";
 
     public NpcLook? ChosenLook => Entry.Looks.FirstOrDefault(l => l.ModName == ChosenMod);
@@ -266,7 +267,7 @@ public partial class NpcChooserViewModel : ObservableObject
     private readonly ConcurrentDictionary<(FormKey, string), Task<string?>> _pictures = new();
     private readonly DispatcherTimer _progressTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private int _picturesDone, _picturesTotal;
-    public const string AllModsFilter = "All mods";
+    public const string AllModsFilter = "All NPCs";
 
     // Decoded pictures of recently shown NPCs, so going back to an NPC shows them instantly.
     private const int BitmapCacheSize = 300;
@@ -327,14 +328,14 @@ public partial class NpcChooserViewModel : ObservableObject
         StartPictureJob();
     }
 
-    private bool Filter(object o) => o is NpcRowViewModel r && Matches(r, SearchText, ModFilter, ShowSingleLook);
+    private bool Filter(object o) => o is NpcRowViewModel r && Matches(r, SearchText, ModFilter, ShowSingleLook, ShowDisabledOverhauls);
 
     /// <summary>Whether an NPC list with this search and these filters shows the NPC.</summary>
-    public static bool Matches(NpcRowViewModel r, string search, string modFilter, bool showSingleLook)
+    public static bool Matches(NpcRowViewModel r, string search, string modFilter, bool showSingleLook, bool showDisabled)
     {
-        // An NPC only FaceFinder has faces for, with those hidden, has nothing to show.
-        if (r.Entry.Looks.Count == 0 && r.Online.Count > 0 && !r.ShownOnline.Any()) return false;
         if (!showSingleLook && r.LookCount < 2) return false;
+        // "Show disabled" off: NPCs that come from disabled mods (every mod face they have is from one) are hidden.
+        if (!showDisabled && r.Entry.Looks.Count > 0 && r.Entry.Looks.All(l => !l.Source.Mod.CountsAsEnabled)) return false;
         if (modFilter != AllModsFilter && !r.Entry.Looks.Any(l => l.ModName == modFilter)) return false;
         if (search.Length == 0) return true;
         return r.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
@@ -399,6 +400,7 @@ public partial class NpcChooserViewModel : ObservableObject
         ModFilter = ModFilters.Contains(current) ? current : AllModsFilter;
         _main.Settings.ShowDisabledOverhauls = value;
         _main.SaveSettings();
+        RefreshLists(); // NPCs from disabled mods show or hide too
     }
 
     partial void OnShowSingleLookChanged(bool value)
@@ -546,8 +548,10 @@ public partial class NpcChooserViewModel : ObservableObject
         var setup = _main.Setup!;
         var installed = setup.AllMods;
         var installedById = catalog.Mods.ToDictionary(m => m.Id, m => FaceFinderCatalog.InstalledMod(m, installed));
+        // No manager: FaceFinder mods you said you copied into Data ("I've installed it" on the Build page).
+        var byHand = _main.Selections.InstalledByHand.ToHashSet();
         List<OnlineLook> OnlineFor(IEnumerable<FaceFinderFace> faces) => faces
-            .Where(f => installedById.TryGetValue(f.ModId, out var folder) && folder == null && !FaceFinderCatalog.IsBaseGame(catalog.Mod(f.ModId)!))
+            .Where(f => installedById.TryGetValue(f.ModId, out var folder) && folder == null && !byHand.Contains(f.ModId) && !FaceFinderCatalog.IsBaseGame(catalog.Mod(f.ModId)!))
             .GroupBy(f => f.ModId).Select(g => new OnlineLook(catalog.Mod(g.Key)!, g.First()))
             .OrderBy(o => o.Mod.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
 
@@ -594,9 +598,11 @@ public partial class NpcChooserViewModel : ObservableObject
             row.PendingOnlinePick = null;
             var modId = OnlineLook.ModIdOf(pick)!.Value;
             if (row.Online.Any(o => o.Mod.Id == modId)) { row.ChosenMod = pick; continue; }
+            // Copied into Data by hand: the face in Data now (what the game shows) is that mod's.
+            if (byHand.Contains(modId)) { row.ChosenMod = NpcRowViewModel.DefaultChoice(row.Entry); continue; }
             // Installed since it was picked: use its real look.
             if (installedById.GetValueOrDefault(modId) is { } folder &&
-                row.Entry.Looks.FirstOrDefault(l => l.Source.Mod.Path.Equals(folder.Path, StringComparison.OrdinalIgnoreCase)) is { } look)
+                row.Entry.Looks.FirstOrDefault(l => l.Source.Mod == folder) is { } look)
                 row.ChosenMod = look.ModName;
         }
     }
@@ -979,9 +985,11 @@ public partial class NpcChooserViewModel : ObservableObject
     {
         if (OnlineLook.ModIdOf(face) is not { } modId || _main.Catalog is not { } catalog) return null;
         if (from.Online.Any(o => o.Mod.Id == modId) || catalog.Mod(modId) is not { } mod) return null;
+        // Copied into Data by hand (no manager): the face in Data now is that mod's.
+        if (_main.Selections.InstalledByHand.Contains(modId)) return from.Entry.DefaultLook?.ModName;
         var folder = FaceFinderCatalog.InstalledMod(mod, _main.Setup!.AllMods);
         return folder == null ? null
-            : from.Entry.Looks.FirstOrDefault(l => l.Source.Mod.Path.Equals(folder.Path, StringComparison.OrdinalIgnoreCase))?.ModName;
+            : from.Entry.Looks.FirstOrDefault(l => l.Source.Mod == folder)?.ModName;
     }
 
     /// <summary>Gives an NPC another NPC's face (null: takes the copy off), saved at once.</summary>

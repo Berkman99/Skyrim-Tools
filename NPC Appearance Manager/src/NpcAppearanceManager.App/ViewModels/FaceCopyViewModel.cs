@@ -46,8 +46,8 @@ public partial class FaceCopyViewModel : ObservableObject
         chooser.FillModFilters(SourceModFilters, _sourceShowDisabled);
         _sourceModFilter = s.CopyModFilter is { } f && SourceModFilters.Contains(f) ? f : NpcChooserViewModel.AllModsFilter;
 
-        TargetView = chooser.NewView(o => o is NpcRowViewModel r && NpcChooserViewModel.Matches(r, chooser.SearchText, chooser.ModFilter, chooser.ShowSingleLook));
-        SourceView = chooser.NewView(o => o is NpcRowViewModel r && NpcChooserViewModel.Matches(r, SourceSearch, SourceModFilter, SourceShowSingleLook));
+        TargetView = chooser.NewView(o => o is NpcRowViewModel r && NpcChooserViewModel.Matches(r, chooser.SearchText, chooser.ModFilter, chooser.ShowSingleLook, chooser.ShowDisabledOverhauls));
+        SourceView = chooser.NewView(o => o is NpcRowViewModel r && NpcChooserViewModel.Matches(r, SourceSearch, SourceModFilter, SourceShowSingleLook, SourceShowDisabled));
         chooser.FilterChanged += () => TargetView.Refresh();
 
         // The NPC 1 and NPC 2 you had last time.
@@ -194,6 +194,7 @@ public partial class FaceCopyViewModel : ObservableObject
         SourceModFilter = SourceModFilters.Contains(current) ? current : NpcChooserViewModel.AllModsFilter;
         _main.Settings.CopyShowDisabledOverhauls = value;
         _main.SaveSettings();
+        SourceView.Refresh(); // NPCs from disabled mods show or hide too
     }
 
     private void UpdateSummary()

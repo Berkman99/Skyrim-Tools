@@ -33,7 +33,8 @@ public sealed class OriginalSources
         _tickedFolders = ticked.Where(t => !t.Mod.IsGameDataFolder).Select(t => t.Mod.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
         _activePlugins = setup.LoadOrder.Select(k => k.FileName.String).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var gamePlugins = setup.LoadOrder.Select(k => k.FileName.String).Where(p => setup.PluginOwner(p) == null && IsGamePlugin(p)).ToList();
-        _gameData = PseudoMod(BaseGameName, setup.DataFolder, gamePlugins);
+        // With Vortex or no manager, loose face files in Data come from mods, never from the game itself.
+        _gameData = PseudoMod(BaseGameName, setup.DataFolder, gamePlugins, ignoreLoose: !setup.IsMo2);
     }
 
     public static OriginalSources Build(GameSetup setup, IReadOnlyList<ModSummary> allMods, IReadOnlyCollection<ModSummary> ticked) =>
@@ -145,7 +146,7 @@ public sealed class OriginalSources
         };
     }
 
-    private static ModSummary PseudoMod(string name, string path, IReadOnlyList<string> plugins) => new()
+    private static ModSummary PseudoMod(string name, string path, IReadOnlyList<string> plugins, bool ignoreLoose) => new()
     {
         Mod = new ModFolder
         {
@@ -153,6 +154,7 @@ public sealed class OriginalSources
             Path = path,
             Priority = 0,
             IsGameDataFolder = true,
+            IgnoreLooseFaces = ignoreLoose,
             TopLevelFiles = GameSetup.ListTopLevelFiles(path),
         },
         Kind = ModKind.FacesOnly,
