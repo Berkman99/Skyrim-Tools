@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace NpcFaceManager.App.Views;
+namespace NpcAppearanceManager.App.Views;
 
 public partial class SettingsView : UserControl
 {

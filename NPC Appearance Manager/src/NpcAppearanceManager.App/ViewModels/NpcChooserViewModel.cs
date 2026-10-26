@@ -10,12 +10,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Build;
-using NpcFaceManager.Core.Mugshots;
-using NpcFaceManager.Core.Scanning;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Build;
+using NpcAppearanceManager.Core.Mugshots;
+using NpcAppearanceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.App.ViewModels;
+namespace NpcAppearanceManager.App.ViewModels;
 
 public partial class NpcRowViewModel : ObservableObject
 {
@@ -24,7 +24,52 @@ public partial class NpcRowViewModel : ObservableObject
     /// <summary>Chosen mod name, or "" for the original look.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ChoiceText))]
+    [NotifyPropertyChangedFor(nameof(IsChanged))]
+    [NotifyPropertyChangedFor(nameof(ShowCopyBar))]
+    [NotifyPropertyChangedFor(nameof(IsLocked))]
+    [NotifyPropertyChangedFor(nameof(LookCount))]
+    [NotifyPropertyChangedFor(nameof(LookCountText))]
     private string _chosenMod;
+
+    /// <summary>The name you gave it (null: its own). Shown as "Own name (New name)"; the game shows the new one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayName))]
+    private string? _customName;
+
+    /// <summary>"Copy faces": the NPC whose face it gets, and which of its faces (a pick key, like <see cref="ChosenMod"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCopy))]
+    [NotifyPropertyChangedFor(nameof(ShowCopyBar))]
+    [NotifyPropertyChangedFor(nameof(CopyText))]
+    [NotifyPropertyChangedFor(nameof(IsLocked))]
+    private (NpcRowViewModel From, string Face)? _copy;
+
+    public bool HasCopy => Copy != null;
+
+    /// <summary>Pick faces' "copied face" bar: only when the pick there differs from what the game shows (it waits on the copy).</summary>
+    public bool ShowCopyBar => HasCopy && IsChanged;
+
+    /// <summary>Copy faces' NPC 1 list: where the copied face comes from (null: nothing copied).</summary>
+    public string? CopyText => Copy is not { } c ? null
+        : c.Face.Length == 0 ? c.From.Entry.OriginalName
+        : c.From.Online.FirstOrDefault(o => o.ChoiceKey == c.Face) is { } online ? $"{online.Mod.Name} (not installed)"
+        : c.Face;
+
+    /// <summary>Amber in Copy faces' NPC 2 list: the selected NPC 1 has its face.</summary>
+    [ObservableProperty] private bool _isCopySource;
+
+    /// <summary>Its face was changed in Pick faces (away from what the game shows now).</summary>
+    public bool IsChanged => ChosenMod != DefaultChoice(Entry);
+
+    /// <summary>Locked in Copy faces' NPC 1 list: changed in Pick faces, with no face copied onto it.</summary>
+    public bool IsLocked => IsChanged && Copy == null;
+
+    /// <summary>Greyed out in Copy faces' NPC 2 list: it's the NPC 1 selected there.</summary>
+    [ObservableProperty] private bool _isCopyTarget;
+
+    /// <summary>One of its faces by pick key ("" the original), as a face to copy; null when there's none to copy.</summary>
+    public NpcLook? CopyableLook(string key) =>
+        key.Length == 0 ? Entry.Original ?? Entry.OriginalPicture : Entry.Looks.FirstOrDefault(l => l.ModName == key);
 
     public NpcRowViewModel(NpcEntry entry, string chosenMod)
     {
@@ -46,12 +91,24 @@ public partial class NpcRowViewModel : ObservableObject
         OnPropertyChanged(nameof(ChoiceText));
     }
 
-    public string DisplayName => Entry.DisplayName;
+    public void RefreshLookCount()
+    {
+        OnPropertyChanged(nameof(LookCount));
+        OnPropertyChanged(nameof(LookCountText));
+    }
+
+    public string DisplayName => CustomName == null ? Entry.DisplayName : $"{Entry.DisplayName} ({CustomName})";
     public string Details => Entry.EditorId == null ? Entry.FormKey.ToString() : $"{Entry.EditorId}  ·  {Entry.FormKey}";
     public string ChoiceText => ChosenMod.Length == 0 ? Entry.OriginalName
         : ChosenOnline is { } online ? $"{online.Mod.Name} (not installed)"
         : ChosenMod;
-    public int LookCount => Entry.Looks.Count + Online.Count;
+    /// <summary>"Hide mods not installed" (Settings): FaceFinder faces of mods you don't have aren't shown, except the picked one.</summary>
+    public static bool HideNotInstalled { get; set; }
+
+    /// <summary>The FaceFinder faces shown for it (all, or only the picked one with "Hide mods not installed").</summary>
+    public IEnumerable<OnlineLook> ShownOnline => HideNotInstalled ? Online.Where(o => o.ChoiceKey == ChosenMod) : Online;
+
+    public int LookCount => Entry.Looks.Count + ShownOnline.Count();
     public string LookCountText => LookCount == 1 ? "1 face" : $"{LookCount} faces";
 
     public NpcLook? ChosenLook => Entry.Looks.FirstOrDefault(l => l.ModName == ChosenMod);
@@ -101,6 +158,12 @@ public partial class LookTileViewModel : ObservableObject
 
     /// <summary>For an online tile: the FaceFinder face.</summary>
     public OnlineLook? OnlineLook { get; init; }
+
+    /// <summary>What a click does instead of picking the face for the NPC (Copy faces copies it).</summary>
+    public Action<LookTileViewModel>? OnClick { get; init; }
+
+    /// <summary>"Use this mod for all its NPCs" only makes sense in Pick faces.</summary>
+    public bool CanUseForAll => OnClick == null;
 
     public bool IsOriginal => Kind == TileKind.Original;
     public bool IsUnavailable => Kind == TileKind.Unavailable;
@@ -175,15 +238,16 @@ public partial class LookTileViewModel : ObservableObject
 
     private async Task ShowAsync(string? path, CancellationToken ct)
     {
-        if (path == null) { PictureStatus = NoPictureText ?? "No mugshot"; return; }
+        if (path == null) { PictureStatus = NoPictureText ?? (_owner.RenderingWaits ? "Waiting for FaceFinder" : "No mugshot"); return; }
         var image = await _owner.LoadBitmapAsync(path);
         if (ct.IsCancellationRequested) return;
         Image = image;
         PictureStatus = image == null ? "Mugshot couldn't be read" : "";
     }
 
-    [RelayCommand] private void Select() => _owner.Choose(this);
+    [RelayCommand] private void Select() => (OnClick ?? _owner.Choose)(this);
     [RelayCommand] private void UseForAll() => _owner.UseModForAll(this);
+    [RelayCommand] private void DontUseForAll() => _owner.DontUseModForAll(this);
     [RelayCommand] private void LinkMugshotFolder() => _owner.LinkMugshotFolder(ModName);
 
     [RelayCommand]
@@ -227,6 +291,7 @@ public partial class NpcChooserViewModel : ObservableObject
     {
         _main = main;
         var settings = main.Settings;
+        NpcRowViewModel.HideNotInstalled = settings.UseFaceFinder && settings.HideNotInstalled;
         var saved = main.Selections.Choices;
         foreach (var entry in index.Npcs)
         {
@@ -234,12 +299,13 @@ public partial class NpcChooserViewModel : ObservableObject
             var choice = c != null && (c.Length == 0 || entry.Looks.Any(l => l.ModName == c))
                 ? c
                 : NpcRowViewModel.DefaultChoice(entry); // the look the game shows right now
-            Rows.Add(new NpcRowViewModel(entry, choice) { PendingOnlinePick = c != null && OnlineLook.ModIdOf(c) != null ? c : null });
+            AddRow(new NpcRowViewModel(entry, choice) { PendingOnlinePick = c != null && OnlineLook.ModIdOf(c) != null ? c : null });
         }
         _index = index;
         _showDisabledOverhauls = settings.ShowDisabledOverhauls;
         FillModFilters();
         if (main.Catalog != null) AddOnlineLooks(main.Catalog);
+        RestoreCopiesAndNames();
 
         _searchText = settings.NpcSearch;
         _modFilter = settings.NpcModFilter is { } f && ModFilters.Contains(f) ? f : AllModsFilter;
@@ -261,27 +327,49 @@ public partial class NpcChooserViewModel : ObservableObject
         StartPictureJob();
     }
 
-    private bool Filter(object o)
+    private bool Filter(object o) => o is NpcRowViewModel r && Matches(r, SearchText, ModFilter, ShowSingleLook);
+
+    /// <summary>Whether an NPC list with this search and these filters shows the NPC.</summary>
+    public static bool Matches(NpcRowViewModel r, string search, string modFilter, bool showSingleLook)
     {
-        if (o is not NpcRowViewModel r) return false;
-        if (!ShowSingleLook && r.LookCount < 2) return false;
-        if (ModFilter != AllModsFilter && !r.Entry.Looks.Any(l => l.ModName == ModFilter)) return false;
-        if (SearchText.Length == 0) return true;
-        return r.DisplayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-               (r.Entry.EditorId?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
-               r.Entry.FormKey.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+        // An NPC only FaceFinder has faces for, with those hidden, has nothing to show.
+        if (r.Entry.Looks.Count == 0 && r.Online.Count > 0 && !r.ShownOnline.Any()) return false;
+        if (!showSingleLook && r.LookCount < 2) return false;
+        if (modFilter != AllModsFilter && !r.Entry.Looks.Any(l => l.ModName == modFilter)) return false;
+        if (search.Length == 0) return true;
+        return r.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               (r.Entry.EditorId?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+               r.Entry.FormKey.ToString().Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A list over the same NPCs (Copy faces has two), in name order, filtered by <paramref name="filter"/>.</summary>
+    public ListCollectionView NewView(Predicate<object> filter) => new(Rows)
+    {
+        Filter = filter,
+        CustomSort = Comparer<object>.Create((a, b) =>
+            StringComparer.CurrentCultureIgnoreCase.Compare(((NpcRowViewModel)a).DisplayName, ((NpcRowViewModel)b).DisplayName)),
+    };
+
+    /// <summary>The search or a filter changed (Copy faces' NPC 1 list uses the same ones).</summary>
+    public event Action? FilterChanged;
+
+    /// <summary>Shows the NPCs that match the search and filters now (in every list using them).</summary>
+    public void RefreshLists()
+    {
+        View.Refresh();
+        FilterChanged?.Invoke();
     }
 
     partial void OnSearchTextChanged(string value)
     {
-        View.Refresh();
+        RefreshLists();
         _main.Settings.NpcSearch = value;
         _main.SaveSettingsSoon();
     }
 
     partial void OnModFilterChanged(string value)
     {
-        View.Refresh();
+        RefreshLists();
         _main.Settings.NpcModFilter = value;
         _main.SaveSettings();
     }
@@ -290,14 +378,16 @@ public partial class NpcChooserViewModel : ObservableObject
     /// The filter lists the mods that change NPCs' looks: overhauls (also ones with other content) and mods that add
     /// NPCs and change others. Disabled ones only with "Show disabled".
     /// </summary>
-    private void FillModFilters()
+    private void FillModFilters() => FillModFilters(ModFilters, ShowDisabledOverhauls);
+
+    public void FillModFilters(ObservableCollection<string> target, bool showDisabled)
     {
         var names = _index.Mods.Values
-            .Where(d => d.Role is ModRole.Overhaul or ModRole.Both && (ShowDisabledOverhauls || d.Summary.Mod.CountsAsEnabled))
+            .Where(d => d.Role is ModRole.Overhaul or ModRole.Both && (showDisabled || d.Summary.Mod.CountsAsEnabled))
             .Select(d => d.Summary.Mod.Name).OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase);
-        ModFilters.Clear();
-        ModFilters.Add(AllModsFilter);
-        foreach (var n in names) ModFilters.Add(n);
+        target.Clear();
+        target.Add(AllModsFilter);
+        foreach (var n in names) target.Add(n);
     }
 
     [ObservableProperty] private bool _showDisabledOverhauls;
@@ -313,9 +403,23 @@ public partial class NpcChooserViewModel : ObservableObject
 
     partial void OnShowSingleLookChanged(bool value)
     {
-        View.Refresh();
+        RefreshLists();
         _main.Settings.ShowSingleLookNpcs = value;
         _main.SaveSettings();
+    }
+
+    /// <summary>The NPC list's width (the divider you drag), kept.</summary>
+    public GridLength ListWidth
+    {
+        get => new(Math.Max(240, _main.Settings.NpcListWidth));
+        set { _main.Settings.NpcListWidth = value.Value; _main.SaveSettingsSoon(); }
+    }
+
+    /// <summary>How far down the NPC list is scrolled, kept.</summary>
+    public double ListScroll
+    {
+        get => _main.Settings.NpcListScroll;
+        set { _main.Settings.NpcListScroll = value; _main.SaveSettingsSoon(); }
     }
 
     partial void OnPictureSizeChanged(double value)
@@ -328,6 +432,7 @@ public partial class NpcChooserViewModel : ObservableObject
     {
         ShowTiles(value);
         ResetPickCommand.NotifyCanExecuteChanged();
+        RemoveCopyCommand.NotifyCanExecuteChanged();
         if (value == null) return;
         _main.Selections.LastSelectedNpc = value.Entry.FormKey.ToString();
         _main.SaveSettingsSoon();
@@ -340,10 +445,16 @@ public partial class NpcChooserViewModel : ObservableObject
     public Task<string?> GetPicture(string modName, NpcLook? look, FormKey npc)
     {
         var key = (npc, modName);
+        // Until FaceFinder's list is there, nothing is rendered: FaceFinder may have this face. The look is looked
+        // up again once the list arrives (the tiles are shown again then).
+        if (RenderingWaits) return Task.Run(() => _main.Mugshots.GetAsync(modName, look, npc, CancellationToken.None, render: false));
         var task = _pictures.GetOrAdd(key, _ => Task.Run(() => _main.Mugshots.GetAsync(modName, look, npc, CancellationToken.None)));
         if (task.IsFaulted || task.IsCanceled) _pictures.TryRemove(key, out _);
         return task;
     }
+
+    /// <summary>A renderer is on, but FaceFinder's list isn't there yet.</summary>
+    public bool RenderingWaits => _main.Mugshots.Generator != null && _main.Settings.Generator != MugshotGeneratorKind.Off && _main.WaitingForCatalog;
 
     /// <summary>The picture of a FaceFinder face (from your mugshots folder if you have one, else downloaded).</summary>
     public Task<string?> GetOnlinePicture(OnlineLook online, FormKey npc)
@@ -406,11 +517,12 @@ public partial class NpcChooserViewModel : ObservableObject
     public void ApplyCatalog(FaceFinderCatalog catalog)
     {
         AddOnlineLooks(catalog);
+        RestoreCopiesAndNames(); // NPCs only FaceFinder has faces for are there now
         _pictures.Clear(); // looks FaceFinder has faces for now use those
         _webSaves.Clear(); // pictures FaceFinder changed were deleted and are downloaded again
         _bitmaps.Clear();
         _bitmapOrder.Clear();
-        View.Refresh();
+        RefreshLists();
         ShowTiles(SelectedNpc);
         UpdateSummary();
         SaveChoices();
@@ -418,7 +530,11 @@ public partial class NpcChooserViewModel : ObservableObject
     }
 
     /// <summary>Starts rendering after FaceFinder's list couldn't be downloaded.</summary>
-    public void ResumePictures() => StartPictureJob();
+    public void ResumePictures()
+    {
+        ShowTiles(SelectedNpc); // its missing mugshots can be rendered now
+        StartPictureJob();
+    }
 
     /// <summary>
     /// Adds FaceFinder's faces from mods you don't have installed as looks, also for NPCs no installed mod changes
@@ -457,7 +573,7 @@ public partial class NpcChooserViewModel : ObservableObject
             // the NPC doesn't exist in this game.
             if (NpcScanner.FindRecord(_main.Plugins, formKey) is not { } record) continue;
             string? recordName;
-            try { recordName = record.Name?.String; } catch { recordName = null; }
+            try { recordName = NameText.Fix(record.Name?.String); } catch { recordName = null; }
             var entry = new NpcEntry
             {
                 FormKey = formKey,
@@ -469,7 +585,7 @@ public partial class NpcChooserViewModel : ObservableObject
             saved.TryGetValue(formKey.ToString(), out var c);
             var row = new NpcRowViewModel(entry, "") { PendingOnlinePick = c != null && OnlineLook.ModIdOf(c) != null ? c : null };
             row.SetOnline(online);
-            Rows.Add(row);
+            AddRow(row);
         }
 
         foreach (var row in Rows.Where(r => r.PendingOnlinePick != null))
@@ -522,8 +638,8 @@ public partial class NpcChooserViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Renders, in the background, the pictures of looks that have none yet: no mugshot, no FaceFinder face and
-    /// not rendered before. Everything else is just found when a tile shows it. Starts right after the list opens.
+    /// With "Render all NPCs" on: renders, in the background, the pictures of looks that have none yet: no mugshot,
+    /// no FaceFinder face and not rendered before. Otherwise only the NPC you open is rendered (by its tiles).
     /// </summary>
     private void StartPictureJob()
     {
@@ -534,7 +650,7 @@ public partial class NpcChooserViewModel : ObservableObject
         _picturesTotal = 0;
         _picturesDone = 0;
         PictureProgress = "";
-        if (mugshots.Generator == null || _main.Settings.Generator == MugshotGeneratorKind.Off) return;
+        if (mugshots.Generator == null || _main.Settings.Generator == MugshotGeneratorKind.Off || !_main.Settings.RenderAllNpcs) return;
         // Until FaceFinder's list is there, it isn't known which looks it has faces for, and those are never rendered.
         if (_main.WaitingForCatalog) { PictureProgress = "Rendering waits for FaceFinder's list"; return; }
 
@@ -578,6 +694,18 @@ public partial class NpcChooserViewModel : ObservableObject
         PictureProgress = $"Rendering missing mugshots: {_picturesDone:N0} / {_picturesTotal:N0}";
     }
 
+    /// <summary>"Hide mods not installed" (or "Use FaceFinder") changed: shows or hides FaceFinder faces of mods you don't have.</summary>
+    public void RefreshNotInstalled()
+    {
+        NpcRowViewModel.HideNotInstalled = _main.Settings.UseFaceFinder && _main.Settings.HideNotInstalled;
+        foreach (var row in Rows) row.RefreshLookCount();
+        RefreshLists();
+        ShowTiles(SelectedNpc);
+    }
+
+    /// <summary>"Render all NPCs" changed: starts or stops rendering in the background.</summary>
+    public void RestartPictureJob() => StartPictureJob();
+
     /// <summary>After switching renderer (or picture settings), look everything up again.</summary>
     public void RestartPictures()
     {
@@ -596,31 +724,47 @@ public partial class NpcChooserViewModel : ObservableObject
         Tiles.Clear();
         if (row == null) return;
         _tileLoading = new CancellationTokenSource();
-        var ct = _tileLoading.Token;
-        var entry = row.Entry;
+        foreach (var tile in MakeTiles(row, row.ChosenMod, null)) Tiles.Add(tile);
+        LoadTiles(Tiles.ToList(), _tileLoading.Token);
+    }
 
+    /// <summary>
+    /// The tiles of an NPC's faces, with the one of <paramref name="chosen"/> (a pick key) selected (none when null).
+    /// A click picks the face for the NPC, or runs <paramref name="onClick"/> when given.
+    /// </summary>
+    public List<LookTileViewModel> MakeTiles(NpcRowViewModel row, string? chosen, Action<LookTileViewModel>? onClick)
+    {
+        var tiles = new List<LookTileViewModel>();
+        var entry = row.Entry;
         foreach (var look in entry.Looks)
         {
             bool own = entry.OriginalIsLook && look == entry.Original;
-            Tiles.Add(new LookTileViewModel(this, look.ModName, look, entry.FormKey, TileKind.Look)
+            tiles.Add(new LookTileViewModel(this, look.ModName, look, entry.FormKey, TileKind.Look)
             {
                 IsOwnModLook = own,
-                IsSelected = row.ChosenMod == look.ModName || (own && row.ChosenMod.Length == 0),
+                IsSelected = chosen == look.ModName || (own && chosen?.Length == 0),
+                OnClick = onClick,
             });
         }
         if (!entry.OriginalIsLook)
-            Tiles.Add(OriginalTile(row));
-        foreach (var online in row.Online)
-            Tiles.Add(new LookTileViewModel(this, online.Mod.Name, null, entry.FormKey, TileKind.Online)
+            tiles.Add(OriginalTile(row, chosen, onClick));
+        foreach (var online in row.Online.Where(o => !NpcRowViewModel.HideNotInstalled || o.ChoiceKey == row.ChosenMod || o.ChoiceKey == chosen))
+            tiles.Add(new LookTileViewModel(this, online.Mod.Name, null, entry.FormKey, TileKind.Online)
             {
                 OnlineLook = online,
-                IsSelected = row.ChosenMod == online.ChoiceKey,
+                IsSelected = chosen == online.ChoiceKey,
+                OnClick = onClick,
             });
-        foreach (var tile in UnavailableTiles(row)) Tiles.Add(tile);
+        tiles.AddRange(UnavailableTiles(row, onClick));
+        return tiles;
+    }
 
-        foreach (var tile in Tiles)
+    /// <summary>Starts loading the tiles' pictures (and finding pluginless faces' plugins).</summary>
+    public void LoadTiles(IReadOnlyList<LookTileViewModel> tiles, CancellationToken ct)
+    {
+        foreach (var tile in tiles)
             _ = tile.LoadImageAsync(ct);
-        _ = FindFacePluginsAsync(Tiles.Where(t => t.Kind == TileKind.Look && t.Look is { IsFacesOnly: true }).ToList(), ct);
+        _ = FindFacePluginsAsync(tiles.Where(t => t.Kind == TileKind.Look && t.Look is { IsFacesOnly: true }).ToList(), ct);
     }
 
     /// <summary>Finds, for each pluginless look shown, the plugin its face was made for (see <see cref="FacePlugins"/>).</summary>
@@ -645,7 +789,7 @@ public partial class NpcChooserViewModel : ObservableObject
     /// The tile for the NPC's own look. An NPC whose look comes from another NPC (a template) shows that NPC's face;
     /// one whose template is a leveled list gets a random face in game, so there's no single face to show.
     /// </summary>
-    private LookTileViewModel OriginalTile(NpcRowViewModel row)
+    private LookTileViewModel OriginalTile(NpcRowViewModel row, string? chosen, Action<LookTileViewModel>? onClick)
     {
         var entry = row.Entry;
         var (borrowed, random) = (entry.OriginalBorrowedFrom, entry.OriginalIsRandom);
@@ -655,7 +799,8 @@ public partial class NpcChooserViewModel : ObservableObject
         var pictureNpc = entry.Original == null ? entry.OriginalPicture?.Npc ?? borrowed ?? entry.FormKey : entry.FormKey;
         return new LookTileViewModel(this, entry.OriginalName, entry.Original ?? entry.OriginalPicture, pictureNpc, TileKind.Original)
         {
-            IsSelected = row.ChosenMod.Length == 0,
+            IsSelected = chosen?.Length == 0,
+            OnClick = onClick,
             OriginalNote = random ? "original · random face" : null,
             NoPictureText = random ? "Random face in game" : null,
             OriginalNoteToolTip = random
@@ -665,7 +810,7 @@ public partial class NpcChooserViewModel : ObservableObject
     }
 
     /// <summary>Mugshots in your mugshot folder of mods that aren't loaded: shown like the others, but can't be picked.</summary>
-    private IEnumerable<LookTileViewModel> UnavailableTiles(NpcRowViewModel row)
+    private IEnumerable<LookTileViewModel> UnavailableTiles(NpcRowViewModel row, Action<LookTileViewModel>? onClick)
     {
         var entry = row.Entry;
         var mugshots = _main.Mugshots;
@@ -691,6 +836,7 @@ public partial class NpcChooserViewModel : ObservableObject
                 MugshotPath = picture,
                 UnavailableReason = reason,
                 UnavailableMessage = message,
+                OnClick = onClick,
             };
         }
     }
@@ -703,8 +849,10 @@ public partial class NpcChooserViewModel : ObservableObject
             MessageBox.Show(Application.Current.MainWindow!, tile.UnavailableMessage, AppSettings.AppName);
             return;
         }
+        var wasOnline = SelectedNpc.ChosenOnline != null;
         SelectedNpc.ChosenMod = tile.IsOriginal ? "" : tile.OnlineLook?.ChoiceKey ?? tile.ModName;
         foreach (var t in Tiles) t.IsSelected = t == tile;
+        if (wasOnline && NpcRowViewModel.HideNotInstalled) ShowTiles(SelectedNpc); // the face picked before hides now
         UpdateSummary();
         SaveChoices();
     }
@@ -722,6 +870,22 @@ public partial class NpcChooserViewModel : ObservableObject
                 row.ChosenMod = tile.ModName;
         }
         else return;
+        ShowTiles(SelectedNpc);
+        UpdateSummary();
+        SaveChoices();
+    }
+
+    /// <summary>
+    /// The opposite of <see cref="UseModForAll"/>: every NPC set to this face's mod gets the face it would have
+    /// without it (the next mod in line, or its original).
+    /// </summary>
+    public void DontUseModForAll(LookTileViewModel tile)
+    {
+        var key = tile.OnlineLook?.ChoiceKey ?? (tile.Kind == TileKind.Look ? tile.ModName : null);
+        if (key == null || _main.Setup == null) return;
+        var ranking = new LookRanking(_main.Setup);
+        foreach (var row in Rows.Where(r => r.ChosenMod == key))
+            row.ChosenMod = ranking.WinnerWithout(row.Entry, key)?.ModName ?? "";
         ShowTiles(SelectedNpc);
         UpdateSummary();
         SaveChoices();
@@ -752,14 +916,109 @@ public partial class NpcChooserViewModel : ObservableObject
 
     /// <summary>Picked looks from mods you don't have installed, by mod, with how many NPCs wait on each.</summary>
     public List<(FaceFinderMod Mod, List<string> Npcs)> OnlinePicks() => Rows
-        .Where(r => r.ChosenOnline != null)
-        .GroupBy(r => r.ChosenOnline!.Mod.Id)
-        .Select(g => (g.First().ChosenOnline!.Mod, g.Select(r => r.DisplayName).OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList()))
+        .Select(r => (Row: r, Online: r.Copy is { } copy ? copy.From.Online.FirstOrDefault(o => o.ChoiceKey == copy.Face) : r.ChosenOnline))
+        .Where(p => p.Online != null)
+        .GroupBy(p => p.Online!.Mod.Id)
+        .Select(g => (g.First().Online!.Mod, g.Select(p => p.Row.DisplayName).OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList()))
         .OrderBy(p => p.Mod.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
 
-    /// <summary>The picks as the build step needs them.</summary>
-    public Dictionary<FormKey, NpcLook> GetChoices() =>
-        Rows.Where(r => r.ChosenLook != null).ToDictionary(r => r.Entry.FormKey, r => r.ChosenLook!);
+    /// <summary>
+    /// The picks as the build step needs them. An NPC with a face copied onto it gets that face (a look of the other
+    /// NPC); its pick here waits until the copy is removed.
+    /// </summary>
+    public Dictionary<FormKey, NpcLook> GetChoices()
+    {
+        var choices = new Dictionary<FormKey, NpcLook>();
+        foreach (var row in Rows)
+        {
+            var look = row.Copy is { } copy ? copy.From.CopyableLook(copy.Face) : row.ChosenLook;
+            if (look != null) choices[row.Entry.FormKey] = look;
+        }
+        return choices;
+    }
+
+    /// <summary>The names you gave NPCs, as the build step needs them.</summary>
+    public Dictionary<FormKey, string> GetNames() =>
+        Rows.Where(r => r.CustomName != null).ToDictionary(r => r.Entry.FormKey, r => r.CustomName!);
+
+    public int CopiedCount => Rows.Count(r => r.HasCopy);
+    public int RenamedCount => Rows.Count(r => r.CustomName != null);
+    private bool AnyRenamed() => Rows.Any(r => r.CustomName != null);
+
+    private void AddRow(NpcRowViewModel row)
+    {
+        row.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NpcRowViewModel.CustomName)) SaveName(row);
+        };
+        Rows.Add(row);
+    }
+
+    /// <summary>Puts back saved copies and names, for NPCs (and copied-from NPCs) that are in the list now.</summary>
+    private void RestoreCopiesAndNames()
+    {
+        var byKey = Rows.ToDictionary(r => r.Entry.FormKey.ToString());
+        var selections = _main.Selections;
+        foreach (var (key, copy) in selections.Copies.ToList())
+        {
+            if (!byKey.TryGetValue(key, out var row) || row.Copy != null || !byKey.TryGetValue(copy.From, out var from)) continue;
+            // A face of a mod that's gone (FaceFinder faces are checked when building).
+            if (OnlineLook.ModIdOf(copy.Face) == null && from.CopyableLook(copy.Face) == null) continue;
+            row.Copy = (from, copy.Face);
+        }
+        // A FaceFinder face of a mod installed since it was copied: the copy moves to the mod's real face.
+        foreach (var row in Rows.ToList())
+            if (row.Copy is { } c && InstalledFace(c.From, c.Face) is { } installed) SetCopy(row, (c.From, installed));
+        foreach (var (key, name) in selections.Names)
+            if (byKey.TryGetValue(key, out var row) && row.CustomName == null) row.CustomName = name;
+        ResetNamesCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>For a FaceFinder face ("ff:id") of a mod that's installed now: that mod's face for the NPC (its pick key).</summary>
+    private string? InstalledFace(NpcRowViewModel from, string face)
+    {
+        if (OnlineLook.ModIdOf(face) is not { } modId || _main.Catalog is not { } catalog) return null;
+        if (from.Online.Any(o => o.Mod.Id == modId) || catalog.Mod(modId) is not { } mod) return null;
+        var folder = FaceFinderCatalog.InstalledMod(mod, _main.Setup!.AllMods);
+        return folder == null ? null
+            : from.Entry.Looks.FirstOrDefault(l => l.Source.Mod.Path.Equals(folder.Path, StringComparison.OrdinalIgnoreCase))?.ModName;
+    }
+
+    /// <summary>Gives an NPC another NPC's face (null: takes the copy off), saved at once.</summary>
+    public void SetCopy(NpcRowViewModel row, (NpcRowViewModel From, string Face)? copy)
+    {
+        row.Copy = copy;
+        var key = row.Entry.FormKey.ToString();
+        if (copy is { } c) _main.Selections.Copies[key] = new FaceCopy { From = c.From.Entry.FormKey.ToString(), Face = c.Face };
+        else _main.Selections.Copies.Remove(key);
+        _main.SaveSettings();
+        RemoveCopyCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SaveName(NpcRowViewModel row)
+    {
+        var key = row.Entry.FormKey.ToString();
+        if (row.CustomName == null) _main.Selections.Names.Remove(key);
+        else _main.Selections.Names[key] = row.CustomName;
+        _main.SaveSettings();
+        ResetNamesCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Step 1's "Remove copied face": the NPC's own pick here applies again.</summary>
+    [RelayCommand(CanExecute = nameof(CanRemoveCopy))]
+    private void RemoveCopy()
+    {
+        if (SelectedNpc is { } row) SetCopy(row, null);
+    }
+
+    private bool CanRemoveCopy() => SelectedNpc?.HasCopy == true;
+
+    /// <summary>"Reset names": a small window listing every renamed NPC, each with an x that gives its own name back.</summary>
+    [RelayCommand(CanExecute = nameof(AnyRenamed))]
+    private void ResetNames()
+    {
+        new Views.RenamedNpcsWindow(this) { Owner = Application.Current.MainWindow }.ShowDialog();
+    }
 
     /// <summary>Only picks that differ from the default are stored, so new or reordered mods still apply.</summary>
     public void SaveChoices()
@@ -785,7 +1044,7 @@ public partial class NpcChooserViewModel : ObservableObject
     private void Next()
     {
         SaveChoices();
-        _main.ShowPage(Page.Build);
+        _main.ShowPage(Page.Copy);
     }
 
     /// <summary>Puts the selected NPC back on the look the game shows right now.</summary>

@@ -1,4 +1,4 @@
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// Dependencies between mods: mod B depends on mod A when one of B's plugins lists one of A's plugins as a

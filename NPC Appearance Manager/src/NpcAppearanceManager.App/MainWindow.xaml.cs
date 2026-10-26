@@ -1,10 +1,8 @@
 ﻿using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
-using NpcFaceManager.App.ViewModels;
+using NpcAppearanceManager.App.ViewModels;
 
-namespace NpcFaceManager.App;
+namespace NpcAppearanceManager.App;
 
 public partial class MainWindow : Window
 {
@@ -16,7 +14,7 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         RestorePlacement();
-        SourceInitialized += (_, _) => UseDarkTitleBar();
+        SourceInitialized += (_, _) => DarkTitleBar.Apply(this);
         Loaded += async (_, _) => await vm.InitializeAsync();
         SizeChanged += (_, _) => RememberPlacement();
         LocationChanged += (_, _) => RememberPlacement();
@@ -58,19 +56,6 @@ public partial class MainWindow : Window
         }
         _vm.SaveSettingsSoon();
     }
-
-    /// <summary>Asks Windows for a dark, teal title bar to match the window.</summary>
-    private void UseDarkTitleBar()
-    {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        int on = 1;
-        _ = DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
-        int caption = 0x00292613; // #132629 (PanelBrush) as 0x00BBGGRR; ignored before Windows 11
-        _ = DwmSetWindowAttribute(hwnd, 35, ref caption, sizeof(int)); // DWMWA_CAPTION_COLOR
-    }
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     protected override void OnClosing(CancelEventArgs e)
     {

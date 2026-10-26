@@ -1,0 +1,209 @@
+<UserControl x:Class="NpcAppearanceManager.App.Views.FaceCopyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:NpcAppearanceManager.App.Views">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{Binding ListWidth, Mode=TwoWay}" MinWidth="400" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.ColumnSpan="3" Style="{StaticResource Muted}" Margin="0,0,0,12"
+                   Text="This step copies any NPC faces to your chosen NPCs, it doesn't swap faces. NPC 2 can be any NPC regardless of gender, if it doesn't match NPC 1, NPC 1's gender and voice change to match NPC 2's (some voice lines become silent). If you don't wanna copy any faces, simply click &quot;Next&quot;." />
+
+        <!-- Left: NPC 1's list, with NPC 2's list right next to it -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- NPC 1: same search and filters as Pick faces -->
+            <DockPanel Margin="0,0,4,0">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBlock Text="NPC 1 (gets the face)" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding Chooser.SearchText, UpdateSourceTrigger=PropertyChanged}" Tag="Search NPCs by name, editor ID or form ID..." Padding="6,5" />
+                    <DockPanel Margin="0,6,0,0">
+                        <CheckBox DockPanel.Dock="Right" Content="Show disabled" IsChecked="{Binding Chooser.ShowDisabledOverhauls}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  ToolTip="Also list face mods that are disabled in your mod list" />
+                        <ComboBox ItemsSource="{Binding Chooser.ModFilters}" SelectedItem="{Binding Chooser.ModFilter}" ToolTip="Only show NPCs this face mod has a face for" />
+                    </DockPanel>
+                    <CheckBox Content="Show NPCs with only one face" IsChecked="{Binding Chooser.ShowSingleLook}" Margin="0,6,0,0" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding TargetView}" SelectedItem="{Binding Target}" views:ScrollMemory.Offset="{Binding TargetScroll}" BorderBrush="{StaticResource BorderBrush}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Style.Triggers>
+                                <!-- Changed in Pick faces: locked, but not greyed out -->
+                                <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                    <Setter Property="Focusable" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource AccentBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"
+                                           Visibility="{Binding IsLocked, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center" Text="{Binding LookCountText}" />
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <!-- Amber: a face was copied onto it -->
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasCopy}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DockPanel>
+                            <!-- Where the copied face comes from (only NPCs with one) -->
+                            <TextBlock Text="{Binding CopyText}" Foreground="{StaticResource AccentBrush}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                       Visibility="{Binding CopyText, Converter={StaticResource NullToCollapsed}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <!-- NPC 2: its own search and filters -->
+            <DockPanel Grid.Column="1" Margin="4,0,0,0">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBlock Text="NPC 2 (face to copy)" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <TextBox Text="{Binding SourceSearch, UpdateSourceTrigger=PropertyChanged}" Tag="Search NPCs by name, editor ID or form ID..." Padding="6,5" />
+                    <DockPanel Margin="0,6,0,0">
+                        <CheckBox DockPanel.Dock="Right" Content="Show disabled" IsChecked="{Binding SourceShowDisabled}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                  ToolTip="Also list face mods that are disabled in your mod list" />
+                        <ComboBox ItemsSource="{Binding SourceModFilters}" SelectedItem="{Binding SourceModFilter}" ToolTip="Only show NPCs this face mod has a face for" />
+                    </DockPanel>
+                    <CheckBox Content="Show NPCs with only one face" IsChecked="{Binding SourceShowSingleLook}" Margin="0,6,0,0" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding SourceView}" SelectedItem="{Binding Source}" views:ScrollMemory.Offset="{Binding SourceScroll}" SelectionChanged="ShowSelected" BorderBrush="{StaticResource BorderBrush}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Style.Triggers>
+                                <!-- The NPC 1 selected: greyed out -->
+                                <DataTrigger Binding="{Binding IsCopyTarget}" Value="True">
+                                    <Setter Property="IsHitTestVisible" Value="False" />
+                                    <Setter Property="Focusable" Value="False" />
+                                    <Setter Property="Opacity" Value="0.4" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center" Text="{Binding LookCountText}" />
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <!-- Amber: the selected NPC 1 has its face -->
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCopySource}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Grid>
+
+        <GridSplitter Grid.Row="1" Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+        <!-- Right: NPC 1's name, then NPC 2's faces -->
+        <DockPanel Grid.Row="1" Grid.Column="2" Margin="8,0,0,0">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" ToolTip="Mugshot size">
+                    <TextBlock Text="Size" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider Width="140" Minimum="120" Maximum="400" Value="{Binding Chooser.PictureSize}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Visibility="{Binding Target, Converter={StaticResource NullToCollapsed}}">
+                    <views:NpcTitle DataContext="{Binding Target}" />
+                    <TextBlock Text="{Binding Target.Details}" Style="{StaticResource Muted}" />
+                </StackPanel>
+            </DockPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Tiles}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="Card" Width="{Binding DataContext.Chooser.PictureSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Margin="0,0,12,12" CornerRadius="6" BorderThickness="2"
+                                    BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceBrush}" Cursor="Hand">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick" Command="{Binding SelectCommand}" />
+                                </Border.InputBindings>
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Link a mugshot folder to this mod..." Command="{Binding LinkMugshotFolderCommand}" />
+                                        <MenuItem Header="Open the mod's page" Command="{Binding OpenModPageCommand}"
+                                                  Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}" />
+                                    </ContextMenu>
+                                </Border.ContextMenu>
+                                <StackPanel>
+                                    <Grid Height="{Binding DataContext.Chooser.PictureSize, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Background="{StaticResource PictureBackBrush}">
+                                        <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                        <TextBlock Text="{Binding PictureStatus}" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Visibility="{Binding PictureStatus, Converter={StaticResource NullToCollapsed}}" />
+                                    </Grid>
+                                    <StackPanel Margin="8,6,8,8">
+                                        <TextBlock Text="{Binding ModName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding ToolTip}" />
+                                        <TextBlock x:Name="CaptionText" Text="{Binding Caption}" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                    <Setter TargetName="CaptionText" Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                    <Setter TargetName="CaptionText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                                    <Setter TargetName="Card" Property="ToolTip" Value="{Binding ToolTip}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="Card" Property="BorderThickness" Value="3" />
+                                    <Setter TargetName="Card" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+
+        <DockPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Next" VerticalAlignment="Center" Command="{Binding NextCommand}" Padding="18,7" />
+            <Button DockPanel.Dock="Left" Content="Reset all picks" VerticalAlignment="Center" Command="{Binding ResetPicksCommand}" Margin="0"
+                    ToolTip="Takes off every copied face (asks first). Picks in step 1 and names stay." />
+            <Button DockPanel.Dock="Left" Content="Reset pick" VerticalAlignment="Center" Command="{Binding ResetPickCommand}" Margin="8,0,0,0"
+                    ToolTip="Takes the copied face off the selected NPC 1" />
+            <Button DockPanel.Dock="Left" Content="Reset names" VerticalAlignment="Center" Command="{Binding Chooser.ResetNamesCommand}" Margin="8,0,0,0"
+                    ToolTip="Lists the NPCs you renamed, to give them their own names back" />
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,7 +1,7 @@
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// Finds each NPC's original look: the look from where the NPC comes from. That's the plugin the NPC's ID belongs

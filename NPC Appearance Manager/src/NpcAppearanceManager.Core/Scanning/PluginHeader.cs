@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// Reads just the header and top-level group list of a plugin. This is a few small reads per file,

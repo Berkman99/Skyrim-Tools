@@ -2,11 +2,11 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Scanning;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.Core.Mugshots;
+namespace NpcAppearanceManager.Core.Mugshots;
 
 /// <summary>
 /// Renders pictures with the external NPC Portrait Creator program (the "legacy" renderer NPC2 also offers).

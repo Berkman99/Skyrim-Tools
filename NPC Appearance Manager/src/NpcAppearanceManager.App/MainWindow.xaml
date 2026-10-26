@@ -1,14 +1,15 @@
-﻿<Window x:Class="NpcFaceManager.App.MainWindow"
+﻿<Window x:Class="NpcAppearanceManager.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:NpcFaceManager.App.ViewModels"
-        xmlns:views="clr-namespace:NpcFaceManager.App.Views"
-        Title="NPC Appearance Manager" Width="1280" Height="820" MinWidth="900" MinHeight="600"
+        xmlns:vm="clr-namespace:NpcAppearanceManager.App.ViewModels"
+        xmlns:views="clr-namespace:NpcAppearanceManager.App.Views"
+        Title="NPC Appearance Manager" Icon="NAM.ico" Width="1280" Height="820" MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}"
         FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
         <DataTemplate DataType="{x:Type vm:NpcChooserViewModel}"><views:NpcChooserView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FaceCopyViewModel}"><views:FaceCopyView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:BuildViewModel}"><views:BuildView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
 
@@ -53,7 +54,10 @@
                     <RadioButton Style="{StaticResource StepButton}" Content="1  Pick faces"
                                  Command="{Binding GoToNpcsCommand}" IsEnabled="{Binding Chooser, Converter={x:Static views:NotNull.Instance}}"
                                  IsChecked="{Binding CurrentStep, Mode=OneWay, Converter={x:Static views:EnumMatch.Instance}, ConverterParameter=Npcs}" />
-                    <RadioButton Style="{StaticResource StepButton}" Content="2  Build"
+                    <RadioButton Style="{StaticResource StepButton}" Content="2  Copy faces"
+                                 Command="{Binding GoToCopyCommand}" IsEnabled="{Binding CopyFaces, Converter={x:Static views:NotNull.Instance}}"
+                                 IsChecked="{Binding CurrentStep, Mode=OneWay, Converter={x:Static views:EnumMatch.Instance}, ConverterParameter=Copy}" />
+                    <RadioButton Style="{StaticResource StepButton}" Content="3  Build"
                                  Command="{Binding GoToBuildCommand}" IsEnabled="{Binding Build, Converter={x:Static views:NotNull.Instance}}"
                                  IsChecked="{Binding CurrentStep, Mode=OneWay, Converter={x:Static views:EnumMatch.Instance}, ConverterParameter=Build}" />
                     <TextBlock Text="{Binding SetupDescription}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16,0,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />

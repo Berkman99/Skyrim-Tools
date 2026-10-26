@@ -3,10 +3,10 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 /// <summary>
 /// For a look that ships only face files: the plugin in your load order whose record the face was made for (for

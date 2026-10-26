@@ -2,11 +2,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Mugshots;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Mugshots;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.App.ViewModels;
+namespace NpcAppearanceManager.App.ViewModels;
 
 public sealed record GeneratorOption(MugshotGeneratorKind Kind, string Label)
 {
@@ -23,7 +23,11 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string? _mugshotsFolder;
     [ObservableProperty] private bool _useFaceFinder;
     [ObservableProperty] private bool _downloadAllFaceFinder;
-    [ObservableProperty] private GeneratorOption _generator;
+    [ObservableProperty] private bool _hideNotInstalled;
+    [ObservableProperty] private bool _renderAllNpcs;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RendererOn))]
+    private GeneratorOption _generator;
     [ObservableProperty] private string _status = "";
 
     public ObservableCollection<string> Profiles { get; } = [];
@@ -31,11 +35,13 @@ public partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<GeneratorOption> GeneratorOptions { get; } =
     [
         new(MugshotGeneratorKind.Off, "Off"),
-        new(MugshotGeneratorKind.InternalRenderer, "Internal renderer"),
+        new(MugshotGeneratorKind.InternalRenderer, "Internal renderer (GPU)"),
         new(MugshotGeneratorKind.PortraitCreator, "Portrait Creator"),
     ];
 
     public MainViewModel Main => _main;
+
+    public bool RendererOn => Generator.Kind != MugshotGeneratorKind.Off;
 
     public bool LaunchedFromMo2 => _main.Setup?.HowFound == "Launched from Mod Organizer 2";
 
@@ -56,7 +62,11 @@ public partial class SettingsViewModel : ObservableObject
 
     // Every change is saved straight away.
     partial void OnMugshotsFolderChanged(string? value) => Persist(picturesChanged: true);
-    partial void OnUseFaceFinderChanged(bool value) => Persist(picturesChanged: true);
+    partial void OnUseFaceFinderChanged(bool value)
+    {
+        Persist(picturesChanged: true);
+        if (!_refreshing) _main.Chooser?.RefreshNotInstalled(); // "Hide mods not installed" only counts with FaceFinder on
+    }
 
     partial void OnDownloadAllFaceFinderChanged(bool value)
     {
@@ -67,6 +77,23 @@ public partial class SettingsViewModel : ObservableObject
         else _main.StopDownloadAll(); // what's saved stays; "Remove downloaded mugshots" deletes it
     }
     partial void OnGeneratorChanged(GeneratorOption value) => Persist(generatorChanged: true, picturesChanged: true);
+
+    partial void OnHideNotInstalledChanged(bool value)
+    {
+        if (_refreshing) return;
+        _main.Settings.HideNotInstalled = value;
+        _main.SaveSettings();
+        _main.Chooser?.RefreshNotInstalled();
+    }
+
+    partial void OnRenderAllNpcsChanged(bool value)
+    {
+        if (_refreshing) return;
+        _main.Settings.RenderAllNpcs = value;
+        _main.SaveSettings();
+        _main.Chooser?.RestartPictureJob();
+    }
+
     partial void OnMo2ProfileChanged(string? value) => Persist();
     partial void OnGameFolderChanged(string? value) => Persist();
 
@@ -98,6 +125,8 @@ public partial class SettingsViewModel : ObservableObject
         MugshotsFolder = s.MugshotsFolder;
         UseFaceFinder = s.UseFaceFinder;
         DownloadAllFaceFinder = s.DownloadAllFaceFinder;
+        HideNotInstalled = s.HideNotInstalled;
+        RenderAllNpcs = s.RenderAllNpcs;
         Generator = GeneratorOptions.First(g => g.Kind == s.Generator);
         LoadProfiles();
         Mo2Profile = _main.Setup?.ProfileName ?? s.Mo2Profile ?? Profiles.FirstOrDefault();

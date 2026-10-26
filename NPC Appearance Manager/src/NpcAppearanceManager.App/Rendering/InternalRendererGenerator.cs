@@ -9,15 +9,15 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Mugshots;
-using NpcFaceManager.Core.Scanning;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Mugshots;
+using NpcAppearanceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Settings;
 using ReactiveUI;
 using ReactiveUI.Builder;
 using RenderSex = CharacterViewer.Rendering.Sex;
 
-namespace NpcFaceManager.App;
+namespace NpcAppearanceManager.App;
 
 /// <summary>
 /// Generates pictures with NPC Plugin Chooser 2's offscreen renderer. Only the face is resolved here

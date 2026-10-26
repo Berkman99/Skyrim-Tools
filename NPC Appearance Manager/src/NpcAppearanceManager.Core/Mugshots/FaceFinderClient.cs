@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Mutagen.Bethesda.Plugins;
 
-namespace NpcFaceManager.Core.Mugshots;
+namespace NpcAppearanceManager.Core.Mugshots;
 
 /// <summary>One face on FaceFinder: an NPC (its ID and plugin, as FaceFinder writes them) as one mod makes it look.</summary>
 public sealed record FaceFinderFace(string ModName, string ImageUrl, DateTime UpdatedAt)

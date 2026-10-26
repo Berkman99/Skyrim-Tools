@@ -4,10 +4,10 @@ using Mutagen.Bethesda.Plugins.Assets;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 public sealed class BuildRequest
 {
@@ -19,7 +19,8 @@ public sealed class BuildRequest
     /// <summary>Every installed mod from the quick scan (to know which plugins still need a merged mod).</summary>
     public required IReadOnlyList<ModSummary> AllMods { get; init; }
 
-    /// <summary>The look picked for each NPC. NPCs missing from here keep their original look.</summary>
+    /// <summary>The look picked for each NPC. NPCs missing from here keep their original look. A look of another NPC
+    /// (<see cref="NpcLook.Npc"/> differs) is a face copied from that NPC.</summary>
     public required IReadOnlyDictionary<FormKey, NpcLook> Choices { get; init; }
 
     /// <summary>
@@ -27,6 +28,9 @@ public sealed class BuildRequest
     /// none of its faces use, or null. Those with one stay on; ones missing here are checked when building.
     /// </summary>
     public IReadOnlyDictionary<ModSummary, string?>? CheckedFiles { get; init; }
+
+    /// <summary>New names for NPCs (the game shows these instead of their own).</summary>
+    public IReadOnlyDictionary<FormKey, string> Names { get; init; } = new Dictionary<FormKey, string>();
 
     public string OutputFolder { get; init; } = "";
     public string OutputPluginName { get; init; } = "";
@@ -47,6 +51,8 @@ public sealed class BuildReport
     public required string PluginPath { get; init; }
     public int NpcsChanged { get; set; }
     public int FaceOnlyNpcs { get; set; }
+    public int FacesCopied { get; set; }
+    public int NpcsRenamed { get; set; }
     public int OriginalLooksKept { get; set; }
     public int RecordsCopied { get; set; }
     public int FilesCopied { get; set; }
@@ -159,6 +165,52 @@ public static class MergeBuilder
 
         var copier = new AssetCopier(request.OutputFolder, plan.FullMods.OrderByDescending(m => m.Mod.Priority).ToList(), report.Warnings);
         var newFacePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // A face copied from another NPC ("Copy faces"): that NPC's face files and look go on this one, under this
+        // one's ID. When the face is the other gender, its voice comes along too.
+        bool CopyFace(FormKey npcKey, NpcLook look, string name)
+        {
+            var contexts = linkCache.ResolveAllContexts<INpc, INpcGetter>(npcKey).Where(c => activeSet.Contains(c.ModKey)).ToList();
+            if (contexts.Count == 0)
+            {
+                report.Warnings.Add($"Skipped {name} ({npcKey}): its record isn't in the load order.");
+                return false;
+            }
+            // An NPC added by a merged mod lives in the new plugin under a new ID.
+            Npc? moved = mapping.TryGetValue(npcKey, out var newKey) ? mergedNpcs.GetValueOrDefault(newKey) : null;
+            var destKey = moved?.FormKey ?? npcKey;
+            if (!CopyFaceFiles(copier, look.Npc, destKey, look, report)) return false;
+
+            var sources = linkCache.ResolveAllContexts<INpc, INpcGetter>(look.Npc).ToList();
+            INpcGetter? source;
+            if (look.RecordFrom is { } from) source = sources.FirstOrDefault(c => from.Contains(c.ModKey))?.Record;
+            else if (look.SourcePlugin is { } plugin) source = sources.FirstOrDefault(c => c.ModKey == plugin)?.Record;
+            else
+            {
+                // Face files only: the version of that NPC whose head parts the face mesh was made with.
+                var shapes = FaceMeshParts.ShapeNames(Path.Combine(request.OutputFolder, FaceGenPaths.NifPath(destKey)));
+                var inGame = sources.Where(c => activeSet.Contains(c.ModKey)).ToList();
+                source = (shapes == null ? null
+                             : FaceMeshParts.Best(inGame.Concat(sources.Where(c => !inGame.Contains(c) && mergeable.Contains(c.ModKey))), c => c.Record, shapes, linkCache))?.Record
+                         ?? inGame.FirstOrDefault()?.Record;
+            }
+            if (source == null)
+            {
+                report.Warnings.Add($"Skipped {name} ({npcKey}): the NPC its face is copied from isn't readable.");
+                return false;
+            }
+
+            var winner = contexts.FirstOrDefault(c => !disabledPlugins.Contains(c.ModKey)) ?? contexts[0];
+            INpc npc = moved ?? winner.GetOrAddAsOverride(output);
+            bool wasFemale = npc.Configuration.Flags.HasFlag(NpcConfiguration.Flag.Female);
+            CopyAppearance(source, npc);
+            if (wasFemale != source.Configuration.Flags.HasFlag(NpcConfiguration.Flag.Female))
+                npc.Voice.SetTo(source.Voice.FormKey);
+            foreach (var link in npc.EnumerateFormLinks().ToList())
+                PullInDependency(link, linkCache, mergeable, mergeableRecordKeys, output, mapping, visited, report);
+            return true;
+        }
+
         int n = 0;
         foreach (var entry in request.Index.Npcs)
         {
@@ -172,6 +224,12 @@ public static class MergeBuilder
             if (contexts.Count == 0)
             {
                 if (look != null) report.Warnings.Add($"Skipped {entry.DisplayName} ({npcKey}): its record isn't in the load order.");
+                continue;
+            }
+
+            if (look != null && look.Npc != npcKey)
+            {
+                if (CopyFace(npcKey, look, entry.DisplayName)) report.FacesCopied++;
                 continue;
             }
 
@@ -281,6 +339,33 @@ public static class MergeBuilder
 
             foreach (var link in npc.EnumerateFormLinks().ToList())
                 PullInDependency(link, linkCache, mergeable, mergeableRecordKeys, output, mapping, visited, report);
+        }
+
+        // Faces copied onto NPCs no installed mod has a face for (only FaceFinder has).
+        var indexed = request.Index.Npcs.Select(e => e.FormKey).ToHashSet();
+        foreach (var (npcKey, look) in request.Choices.Where(c => !indexed.Contains(c.Key) && c.Value.Npc != c.Key))
+            if (CopyFace(npcKey, look, npcKey.ToString())) report.FacesCopied++;
+
+        // New names. An NPC not written so far gets the record the game uses once the merged mods are off.
+        foreach (var (npcKey, newName) in request.Names)
+        {
+            var key = mapping.GetValueOrDefault(npcKey, npcKey);
+            INpc? npc = output.Npcs.FirstOrDefault(r => r.FormKey == key);
+            if (npc == null)
+            {
+                var under = linkCache.ResolveAllContexts<INpc, INpcGetter>(npcKey)
+                    .FirstOrDefault(c => activeSet.Contains(c.ModKey) && !mergeable.Contains(c.ModKey));
+                if (under == null)
+                {
+                    report.Warnings.Add($"Couldn't rename {npcKey} to {newName}: its record isn't in the load order.");
+                    continue;
+                }
+                npc = under.GetOrAddAsOverride(output);
+                foreach (var link in npc.EnumerateFormLinks().ToList())
+                    PullInDependency(link, linkCache, mergeable, mergeableRecordKeys, output, mapping, visited, report);
+            }
+            npc.Name = NameText.ForPlugin(newName);
+            report.NpcsRenamed++;
         }
 
         // 3. Point everything at the copies made inside the new plugin.

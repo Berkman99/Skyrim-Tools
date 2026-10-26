@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Scanning;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.Core.Mugshots;
+namespace NpcAppearanceManager.Core.Mugshots;
 
 public interface IMugshotGenerator
 {
@@ -228,16 +228,17 @@ public sealed class MugshotService
     /// <summary>
     /// The picture for a look, in this order: your mugshots folder, FaceFinder (a saved picture, or the web address
     /// of one not saved yet), a picture rendered before, or a new render. A look FaceFinder has a face for is never
-    /// rendered, and a render that failed isn't tried again until "Generate pictures again".
+    /// rendered, and a render that failed isn't tried again until "Generate pictures again". With <paramref name="render"/>
+    /// off (e.g. while FaceFinder's list is still loading), nothing new is rendered.
     /// </summary>
-    public async Task<string?> GetAsync(string modName, NpcLook? look, FormKey npc, CancellationToken ct)
+    public async Task<string?> GetAsync(string modName, NpcLook? look, FormKey npc, CancellationToken ct, bool render = true)
     {
         if (modName == OriginalLookName) return null;
         if (FindMugshot(modName, npc) is { } mugshot) return mugshot;
         if (_settings.UseFaceFinder && FindFaceFinderFace(modName, look, npc) is { } face) return FaceFinderPicture(face);
         if (FindGenerated(modName, npc) is { } generated) return generated;
 
-        if (look != null && Generator != null && _settings.Generator != MugshotGeneratorKind.Off && !FailedRenders.ContainsKey(FailKey(modName, npc)))
+        if (render && look != null && Generator != null && _settings.Generator != MugshotGeneratorKind.Off && !FailedRenders.ContainsKey(FailKey(modName, npc)))
         {
             var output = Path.Combine(GeneratedFolder, RelativeImageBase(Safe(modName), npc)) + ".png";
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);

@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.Core.Mugshots;
+namespace NpcAppearanceManager.Core.Mugshots;
 
 /// <summary>A face from a mod you don't have installed: it can be picked, but built only once the mod is installed.</summary>
 public sealed record OnlineLook(FaceFinderMod Mod, FaceFinderFace Face)

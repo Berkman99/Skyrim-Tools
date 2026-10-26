@@ -1,7 +1,7 @@
-<UserControl x:Class="NpcFaceManager.App.Views.SettingsView"
+<UserControl x:Class="NpcAppearanceManager.App.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:NpcFaceManager.App.Views">
+             xmlns:local="clr-namespace:NpcAppearanceManager.App.Views">
     <UserControl.Resources>
         <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource Title}">
             <Setter Property="FontSize" Value="15" />
@@ -79,7 +79,7 @@
                     </StackPanel>
                     <TextBlock Text="{Binding Main.FaceFinderStatus}" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <CheckBox Content="Download all FaceFinder mugshots" IsChecked="{Binding DownloadAllFaceFinder}" VerticalAlignment="Center"
+                        <CheckBox Content="Download all FaceFinder mugshots (recommended)" IsChecked="{Binding DownloadAllFaceFinder}" VerticalAlignment="Center"
                                   IsEnabled="{Binding UseFaceFinder}"
                                   ToolTip="About 40,000 mugshots, around 3.4 GB, downloaded once in the background. Switching it off keeps what's saved." />
                         <Button Content="Remove downloaded mugshots" Command="{Binding RemoveFaceFinderPicturesCommand}" Margin="12,0,0,0"
@@ -89,21 +89,27 @@
                                Text="Off: a mugshot is downloaded and saved the first time you open its NPC, then it shows straight away. On: all of them are downloaded now, so even the first click is instant." />
                     <TextBlock Text="{Binding Main.FaceFinderPicturesStatus}" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
                                Visibility="{Binding Main.FaceFinderPicturesStatus, Converter={StaticResource NullToCollapsed}}" />
+                    <CheckBox Content="Hide mods not installed" IsChecked="{Binding HideNotInstalled}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                              IsEnabled="{Binding UseFaceFinder}"
+                              ToolTip="Hides FaceFinder faces from mods you don't have installed. A face you already picked stays until you pick another one." />
                 </StackPanel>
 
                 <!-- 3: rendered -->
                 <TextBlock Grid.Row="2" Text="3  Render missing" VerticalAlignment="Top" Margin="0,18,0,0" />
                 <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,14,0,0">
-                    <ComboBox ItemsSource="{Binding GeneratorOptions}" SelectedItem="{Binding Generator}"
-                              DisplayMemberPath="Label" MaxWidth="300" HorizontalAlignment="Left" MinWidth="240"
-                              ToolTip="Internal renderer needs a graphics card" />
+                    <StackPanel Orientation="Horizontal">
+                        <ComboBox ItemsSource="{Binding GeneratorOptions}" SelectedItem="{Binding Generator}"
+                                  DisplayMemberPath="Label" MaxWidth="300" HorizontalAlignment="Left" MinWidth="240"
+                                  ToolTip="Internal renderer needs a graphics card" />
+                        <Button Content="Regenerate renders" Command="{Binding RegeneratePicturesCommand}" Margin="8,0,0,0"
+                                ToolTip="Deletes the mugshots the selected renderer made and renders them again, failed ones included. Your own and FaceFinder mugshots stay." />
+                    </StackPanel>
+                    <CheckBox Content="Render all NPCs" IsChecked="{Binding RenderAllNpcs}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                              IsEnabled="{Binding RendererOn}"
+                              ToolTip="Off: only the NPC you open is rendered. On: every missing mugshot is rendered in the background." />
                     <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
-                               Text="Only faces with no mugshot and no FaceFinder mugshot are rendered, in the background. A face that fails isn't tried again until &quot;Generate mugshots again&quot;." />
+                               Text="Render missing mugshots not covered by Mugshots folder/FaceFinder. Internal renderer is recommended, but requires a GPU." />
                 </StackPanel>
-
-                <Button Grid.Row="3" Grid.Column="1" Content="Generate mugshots again" Command="{Binding RegeneratePicturesCommand}"
-                        HorizontalAlignment="Left" Margin="0,10,0,0"
-                        ToolTip="Deletes the mugshots the selected renderer made and renders them again, failed ones included. Your own and FaceFinder mugshots stay." />
             </Grid>
         </StackPanel>
     </ScrollViewer>

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
-namespace NpcFaceManager.Core.Environment;
+namespace NpcAppearanceManager.Core.Environment;
 
 /// <summary>
 /// Works out which MO2 instance (if any) launched this program, without asking the user.

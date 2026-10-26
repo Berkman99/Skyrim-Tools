@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 
-namespace NpcFaceManager.App;
+namespace NpcAppearanceManager.App;
 
 public sealed class NullToVisibilityConverter : IValueConverter
 {

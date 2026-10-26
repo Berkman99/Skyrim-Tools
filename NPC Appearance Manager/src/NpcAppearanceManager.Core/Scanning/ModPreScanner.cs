@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
-using NpcFaceManager.Core.Build;
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Build;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 public enum ModKind
 {

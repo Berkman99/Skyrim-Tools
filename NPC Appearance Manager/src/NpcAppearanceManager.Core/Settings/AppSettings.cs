@@ -1,13 +1,20 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace NpcFaceManager.Core.Settings;
+namespace NpcAppearanceManager.Core.Settings;
 
 public enum MugshotGeneratorKind
 {
     Off,
     InternalRenderer,
     PortraitCreator,
+}
+
+/// <summary>A face copied from another NPC: that NPC (FormKey text) and the face (a pick key like in Choices).</summary>
+public sealed class FaceCopy
+{
+    public string From { get; set; } = "";
+    public string Face { get; set; } = "";
 }
 
 /// <summary>Choices made for one MO2 profile (or one game folder without MO2).</summary>
@@ -18,6 +25,16 @@ public sealed class ProfileSelections
 
     /// <summary>The NPC that was selected last (FormKey text).</summary>
     public string? LastSelectedNpc { get; set; }
+
+    /// <summary>"Copy faces": NPC FormKey text → the NPC whose face it gets, and which of its faces.</summary>
+    public Dictionary<string, FaceCopy> Copies { get; set; } = [];
+
+    /// <summary>NPC FormKey text → the name you gave it (shown as "Original (New)", and its name in the game).</summary>
+    public Dictionary<string, string> Names { get; set; } = [];
+
+    /// <summary>Copy faces' last NPC 1 and NPC 2 (FormKey text).</summary>
+    public string? LastCopyTarget { get; set; }
+    public string? LastCopySource { get; set; }
 }
 
 /// <summary>Settings saved next to the program as NpcAppearanceManager.settings.json.</summary>
@@ -37,6 +54,19 @@ public sealed class AppSettings
     public string? NpcModFilter { get; set; }
     public bool ShowSingleLookNpcs { get; set; }
     public bool ShowDisabledOverhauls { get; set; }
+
+    // "Copy faces": the NPC 2 list has its own search and filters.
+    public string CopySearch { get; set; } = "";
+    public string? CopyModFilter { get; set; }
+    public bool CopyShowSingleLookNpcs { get; set; }
+    public bool CopyShowDisabledOverhauls { get; set; }
+
+    // Where the NPC lists' dividers and scroll bars were left.
+    public double NpcListWidth { get; set; } = 340;
+    public double CopyListsWidth { get; set; } = 560;
+    public double NpcListScroll { get; set; }
+    public double CopyTargetScroll { get; set; }
+    public double CopySourceScroll { get; set; }
     public double PictureSize { get; set; } = 230;
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
@@ -59,7 +89,14 @@ public sealed class AppSettings
 
     /// <summary>"Download all FaceFinder pictures": saves every picture in the background, not just the NPCs you open.</summary>
     public bool DownloadAllFaceFinder { get; set; }
+
+    /// <summary>"Hide mods not installed": FaceFinder faces of mods you don't have aren't shown (a picked one still is).</summary>
+    public bool HideNotInstalled { get; set; }
+
     public MugshotGeneratorKind Generator { get; set; } = MugshotGeneratorKind.Off;
+
+    /// <summary>"Render all NPCs": renders every missing mugshot in the background, not just the NPC you open.</summary>
+    public bool RenderAllNpcs { get; set; }
 
     /// <summary>Mod name → folder name inside the mugshots folder, when they differ.</summary>
     public Dictionary<string, string> MugshotFolderLinks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -71,10 +108,6 @@ public sealed class AppSettings
 
     [JsonIgnore]
     public static string FilePath => Path.Combine(AppFolder, "NpcAppearanceManager.settings.json");
-
-    /// <summary>The settings file from before the rename to NPC Appearance Manager; read once if there's no new one.</summary>
-    [JsonIgnore]
-    public static string OldFilePath => Path.Combine(AppFolder, "NpcFaceManager.settings.json");
 
     /// <summary>"NAM Merge.esp" or "NAM Merge" → "NAM Merge".</summary>
     public static string PluginBaseName(string name)
@@ -101,13 +134,12 @@ public sealed class AppSettings
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static AppSettings Load() => Load(FilePath, OldFilePath);
+    public static AppSettings Load() => Load(FilePath);
 
-    internal static AppSettings Load(string filePath, string oldFilePath)
+    internal static AppSettings Load(string path)
     {
         try
         {
-            var path = File.Exists(filePath) ? filePath : oldFilePath;
             if (File.Exists(path))
             {
                 var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), JsonOptions);

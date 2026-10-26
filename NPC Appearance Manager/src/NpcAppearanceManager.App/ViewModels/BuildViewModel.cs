@@ -3,11 +3,11 @@ using System.Diagnostics;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NpcFaceManager.Core.Build;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Build;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.App.ViewModels;
+namespace NpcAppearanceManager.App.ViewModels;
 
 /// <summary>One row of the "what happens to each mod" list.</summary>
 public sealed record PlannedRow(string Name, string Status, PlanGroup Group, string? ToolTip);
@@ -127,8 +127,8 @@ public partial class BuildViewModel : ObservableObject
     {
         var chooser = _main.Chooser;
         if (chooser == null || _main.Setup == null || _main.Index == null) return;
-        var changed = chooser.Rows.Count(r => r.ChosenMod != NpcRowViewModel.DefaultChoice(r.Entry));
-        Summary = $"{changed:N0} NPCs changed from what the game shows now";
+        var changed = chooser.Rows.Count(r => r.IsChanged && !r.HasCopy);
+        Summary = $"{changed:N0} NPCs changed from what the game shows now · {chooser.CopiedCount:N0} faces copied · {chooser.RenamedCount:N0} renamed";
         ToInstall.Clear();
         foreach (var (mod, npcs) in chooser.OnlinePicks()) ToInstall.Add(new MissingMod(mod.Name, mod.Url, npcs));
         OnPropertyChanged(nameof(CanBuild));
@@ -162,19 +162,20 @@ public partial class BuildViewModel : ObservableObject
     }
 
     /// <summary>The background check of the overhauls' files (null if it failed: the build then checks them itself).</summary>
-    private async Task<IReadOnlyDictionary<NpcFaceManager.Core.Scanning.ModSummary, string?>?> CheckedFilesAsync()
+    private async Task<IReadOnlyDictionary<NpcAppearanceManager.Core.Scanning.ModSummary, string?>?> CheckedFilesAsync()
     {
         try { return await _main.OverhaulFiles; }
         catch (Exception) { return null; }
     }
 
     private BuildRequest MakeRequest(NpcChooserViewModel chooser, string outputFolder, string plugin,
-        IReadOnlyDictionary<NpcFaceManager.Core.Scanning.ModSummary, string?>? checkedFiles) => new()
+        IReadOnlyDictionary<NpcAppearanceManager.Core.Scanning.ModSummary, string?>? checkedFiles) => new()
     {
         Setup = _main.Setup!,
         Index = _main.Index!,
         AllMods = _main.PreScan,
         Choices = chooser.GetChoices(),
+        Names = chooser.GetNames(),
         CheckedFiles = checkedFiles,
         OutputFolder = outputFolder,
         OutputPluginName = plugin,
@@ -216,7 +217,10 @@ public partial class BuildViewModel : ObservableObject
     private void ShowReport(BuildReport report)
     {
         Report = report;
-        ResultHeadline = $"Done · {report.NpcsChanged + report.FaceOnlyNpcs:N0} faces · {report.RecordsCopied:N0} records · {report.FilesCopied:N0} files" +
+        ResultHeadline = $"Done · {report.NpcsChanged + report.FaceOnlyNpcs:N0} faces · " +
+                         (report.FacesCopied > 0 ? $"{report.FacesCopied:N0} copied · " : "") +
+                         (report.NpcsRenamed > 0 ? $"{report.NpcsRenamed:N0} renamed · " : "") +
+                         $"{report.RecordsCopied:N0} records · {report.FilesCopied:N0} files" +
                          (report.IsLightPlugin ? " · ESL" : "");
         Fill(SafeToDisable, report.ModsSafeToDisable.Concat(report.MergedDisabledMods));
         Fill(Warnings, report.Warnings);
@@ -261,6 +265,6 @@ public partial class BuildViewModel : ObservableObject
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{OutputFolder}\"") { UseShellExecute = true });
     }
 
-    [RelayCommand] private void Back() => _main.ShowPage(Page.Npcs);
+    [RelayCommand] private void Back() => _main.ShowPage(Page.Copy);
 }
 

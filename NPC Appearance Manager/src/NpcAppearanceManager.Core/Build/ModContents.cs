@@ -1,9 +1,9 @@
 using Mutagen.Bethesda.Plugins.Assets;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 /// <summary>What an overhaul's files are for: its faces, or something else as well.</summary>
 public static class ModContents

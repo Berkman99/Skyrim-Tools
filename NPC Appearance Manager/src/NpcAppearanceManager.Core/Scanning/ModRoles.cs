@@ -1,6 +1,6 @@
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>What a mod with faces does, worked out from the NPCs its faces belong to.</summary>
 public enum ModRole
@@ -60,6 +60,10 @@ public sealed class LookRanking
 
     /// <summary>The winning look among <paramref name="looks"/>, or null when there are none.</summary>
     public NpcLook? Winner(IEnumerable<NpcLook> looks) => looks.Where(l => l.Faces.HasNif).MaxBy(Rank);
+
+    /// <summary>The look the game would show for an NPC without <paramref name="modName"/> (null: its original).</summary>
+    public NpcLook? WinnerWithout(NpcEntry entry, string modName) =>
+        Winner(entry.Looks.Where(l => l.ModName != modName && l.Source.Mod.CountsAsEnabled));
 
     private (int, int) Rank(NpcLook look)
     {

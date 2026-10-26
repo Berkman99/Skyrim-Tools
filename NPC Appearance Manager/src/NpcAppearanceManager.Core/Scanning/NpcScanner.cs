@@ -1,8 +1,8 @@
 using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// Reads every mod with faces and builds the list of NPCs with all their available looks, which look the game shows
@@ -153,7 +153,7 @@ public static class NpcScanner
 
     private static string? SafeName(INpcGetter npc)
     {
-        try { return npc.Name?.String; }
+        try { return NameText.Fix(npc.Name?.String); }
         catch { return null; } // localized plugin whose string files couldn't be read
     }
 

@@ -1,9 +1,9 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
-using NpcFaceManager.App.ViewModels;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.App.ViewModels;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.App;
+namespace NpcAppearanceManager.App;
 
 public partial class App : Application
 {

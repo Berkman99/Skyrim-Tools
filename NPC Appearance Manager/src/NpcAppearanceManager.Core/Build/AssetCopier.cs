@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 /// <summary>
 /// Copies files into the output mod, loose or out of archives. The first copy of a path wins, so callers

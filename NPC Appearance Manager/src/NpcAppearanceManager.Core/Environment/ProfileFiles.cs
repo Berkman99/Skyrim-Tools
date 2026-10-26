@@ -1,7 +1,7 @@
 using System.Text;
-using NpcFaceManager.Core.Build;
+using NpcAppearanceManager.Core.Build;
 
-namespace NpcFaceManager.Core.Environment;
+namespace NpcAppearanceManager.Core.Environment;
 
 public sealed record MergeChanges(
     IReadOnlyCollection<string> ModsToDisable,

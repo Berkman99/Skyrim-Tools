@@ -1,8 +1,8 @@
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Mugshots;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Mugshots;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.App;
+namespace NpcAppearanceManager.App;
 
 /// <summary>Creates the built-in 3D renderer used for generated pictures.</summary>
 public static class InternalRendererFactory

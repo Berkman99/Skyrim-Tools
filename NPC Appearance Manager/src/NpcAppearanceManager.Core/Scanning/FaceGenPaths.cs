@@ -1,7 +1,7 @@
 using System.Globalization;
 using Mutagen.Bethesda.Plugins;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// The game looks for an NPC's baked face at

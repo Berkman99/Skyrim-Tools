@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace NpcFaceManager.Core.Environment;
+namespace NpcAppearanceManager.Core.Environment;
 
 /// <summary>
 /// One Mod Organizer 2 instance, as described by its ModOrganizer.ini.

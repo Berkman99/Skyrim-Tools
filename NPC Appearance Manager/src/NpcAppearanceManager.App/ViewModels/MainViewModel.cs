@@ -1,15 +1,15 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using NpcFaceManager.Core.Build;
-using NpcFaceManager.Core.Environment;
-using NpcFaceManager.Core.Mugshots;
-using NpcFaceManager.Core.Scanning;
-using NpcFaceManager.Core.Settings;
+using NpcAppearanceManager.Core.Build;
+using NpcAppearanceManager.Core.Environment;
+using NpcAppearanceManager.Core.Mugshots;
+using NpcAppearanceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Settings;
 
-namespace NpcFaceManager.App.ViewModels;
+namespace NpcAppearanceManager.App.ViewModels;
 
-public enum Page { Npcs, Build, Settings }
+public enum Page { Npcs, Copy, Build, Settings }
 
 /// <summary>The app shell: holds the detected setup, reads every mod with faces, and moves between the steps.</summary>
 public partial class MainViewModel : ObservableObject
@@ -45,6 +45,7 @@ public partial class MainViewModel : ObservableObject
 
     public SettingsViewModel SettingsPage { get; }
     [ObservableProperty] private NpcChooserViewModel? _chooser;
+    [ObservableProperty] private FaceCopyViewModel? _copyFaces;
     [ObservableProperty] private BuildViewModel? _build;
 
     [ObservableProperty] private object? _currentPage;
@@ -138,6 +139,7 @@ public partial class MainViewModel : ObservableObject
         Index = null;
         Chooser?.StopPictures();
         Chooser = null;
+        CopyFaces = null;
         Build = null;
     }
 
@@ -170,12 +172,17 @@ public partial class MainViewModel : ObservableObject
             if (Catalog == null && Settings.UseFaceFinder) { Catalog = await Task.Run(FaceFinderCatalog.Load); Mugshots.Catalog = Catalog; }
         });
         if (Index == null) return;
+        if (ArchiveHelper.UnreadableArchives is { Count: > 0 } broken)
+            MessageBox.Show(Application.Current.MainWindow!,
+                string.Join("\n", broken.Select(a => $"Couldn't read {Path.GetFileName(a)} (damaged archive). Faces inside it are skipped.")),
+                AppSettings.AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         Chooser?.StopPictures();
         var plugins = Plugins;
         FacePlugins = Task.Run(() => new FacePlugins(setup, plugins));
         var index = Index;
         OverhaulFiles = Task.Run(() => ModContents.CheckOverhauls(setup, index, plugins));
         Chooser = new NpcChooserViewModel(this, Index);
+        CopyFaces = new FaceCopyViewModel(this, Chooser);
         Build = new BuildViewModel(this);
         ShowPage(Page.Npcs);
         if (Catalog != null) FaceFinderStatus = CatalogText(Catalog);
@@ -311,14 +318,17 @@ public partial class MainViewModel : ObservableObject
         CurrentPage = page switch
         {
             Page.Npcs => (object?)Chooser ?? SettingsPage,
+            Page.Copy => (object?)CopyFaces ?? SettingsPage,
             Page.Build => (object?)Build ?? SettingsPage,
             _ => SettingsPage,
         };
         if (page == Page.Settings) SettingsPage.Refresh();
+        if (page == Page.Copy) CopyFaces?.Start();
         if (page == Page.Build) Build?.RefreshSummary();
     }
 
     [RelayCommand] private void GoToNpcs() { if (Chooser != null) ShowPage(Page.Npcs); }
+    [RelayCommand] private void GoToCopy() { if (CopyFaces != null) ShowPage(Page.Copy); }
     [RelayCommand] private void GoToBuild() { if (Build != null) ShowPage(Page.Build); }
     [RelayCommand] private void GoToSettings() => ShowPage(Page.Settings);
 

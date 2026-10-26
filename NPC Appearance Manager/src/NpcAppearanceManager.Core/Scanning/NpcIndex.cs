@@ -1,7 +1,7 @@
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>Where one NPC's face mesh and face tint live inside one mod.</summary>
 public sealed class FaceFiles

@@ -2,9 +2,9 @@ using Mutagen.Bethesda;
 using Mutagen.Bethesda.Installs;
 using Mutagen.Bethesda.Plugins;
 using Noggog;
-using NpcFaceManager.Core.Build;
+using NpcAppearanceManager.Core.Build;
 
-namespace NpcFaceManager.Core.Environment;
+namespace NpcAppearanceManager.Core.Environment;
 
 /// <summary>An installed mod folder (or the game's Data folder when not using MO2).</summary>
 public sealed class ModFolder

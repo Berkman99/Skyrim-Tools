@@ -1,6 +1,6 @@
 using nifly;
 
-namespace NpcFaceManager.Core.Mugshots;
+namespace NpcAppearanceManager.Core.Mugshots;
 
 /// <summary>Checks on a face mesh before it's rendered.</summary>
 public static class FaceMeshCheck

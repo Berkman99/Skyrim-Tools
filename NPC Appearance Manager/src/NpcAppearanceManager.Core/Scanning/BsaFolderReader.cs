@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>
 /// Reads only the folder list (names + file counts) of a Skyrim BSA. That's a handful of small reads,

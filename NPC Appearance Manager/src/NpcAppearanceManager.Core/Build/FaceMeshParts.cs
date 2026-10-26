@@ -2,7 +2,7 @@ using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
 using nifly;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 /// <summary>
 /// Which record a face mesh was made for. The Creation Kit names every shape in a face mesh after the head part it

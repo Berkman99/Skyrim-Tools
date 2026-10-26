@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <RootNamespace>NpcFaceManager.App</RootNamespace>
+    <RootNamespace>NpcAppearanceManager.App</RootNamespace>
     <AssemblyName>NPC Appearance Manager</AssemblyName>
     <Version>1.0.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -19,6 +19,8 @@
     <!-- MO2 hooks launched programs (USVFS). With Windows' CET shadow stack enabled the process crashes at
          start-up under MO2, so the exe is marked as not CET-compatible (same fix NPC2 uses). -->
     <CETCompat>false</CETCompat>
+    <!-- The logo: on the exe, and (as a resource) on the window and taskbar. -->
+    <ApplicationIcon>NAM.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +30,10 @@
   <ItemGroup>
     <!-- WPF projects don't get System.IO as an implicit using. -->
     <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="NAM.ico" />
   </ItemGroup>
 
   <ItemGroup>

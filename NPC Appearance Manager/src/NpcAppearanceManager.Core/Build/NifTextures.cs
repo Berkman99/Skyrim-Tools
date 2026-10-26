@@ -1,7 +1,7 @@
 using nifly;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 public static class NifTextures
 {

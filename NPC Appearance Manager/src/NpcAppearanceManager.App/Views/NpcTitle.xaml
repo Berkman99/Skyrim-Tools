@@ -1,0 +1,15 @@
+<UserControl x:Class="NpcAppearanceManager.App.Views.NpcTitle"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- An NPC's big name with "Rename" right after it. DataContext: the NPC's row. -->
+    <StackPanel Orientation="Horizontal">
+        <TextBlock x:Name="NameText" Text="{Binding DisplayName}" Style="{StaticResource Title}" VerticalAlignment="Center" />
+        <Button x:Name="RenameButton" Content="Rename" Style="{StaticResource RenameButton}" Margin="10,0,0,4" VerticalAlignment="Center"
+                Click="StartRename" ToolTip="Give this NPC a new name. Its own name stays shown, with the new one in brackets." />
+        <StackPanel x:Name="Editor" Orientation="Horizontal" Visibility="Collapsed" Margin="10,0,0,4" VerticalAlignment="Center">
+            <TextBox x:Name="NameBox" Width="200" Padding="4,2" KeyDown="NameBoxKeyDown" />
+            <Button Content="OK" MinWidth="0" Padding="10,2" Click="Confirm" />
+            <Button Content="Cancel" MinWidth="0" Padding="10,2" Click="Cancel" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -1,7 +1,7 @@
 using Mutagen.Bethesda.Plugins;
-using NpcFaceManager.Core.Scanning;
+using NpcAppearanceManager.Core.Scanning;
 
-namespace NpcFaceManager.Core.Build;
+namespace NpcAppearanceManager.Core.Build;
 
 /// <summary>
 /// Decides for each enabled overhaul whether it is merged and switched off or left on: whichever leaves fewer NPCs
@@ -21,7 +21,8 @@ internal sealed class MergeDecision
         _npcs = request.Index.Npcs;
         _wanted = _npcs.Select(e => Wanted(e, request.Choices)).ToArray();
         for (int i = 0; i < _npcs.Count; i++)
-            foreach (var mod in _npcs[i].Looks.Select(l => l.Source).Distinct())
+            // A face copied from another NPC counts for the mod it comes from too.
+            foreach (var mod in _npcs[i].Looks.Select(l => l.Source).Append(_wanted[i]?.Source).OfType<ModSummary>().Distinct())
             {
                 if (!_npcsByMod.TryGetValue(mod, out var list)) _npcsByMod[mod] = list = [];
                 list.Add(i);
@@ -77,7 +78,8 @@ internal sealed class MergeDecision
     {
         var npcs = _npcsByMod.GetValueOrDefault(mod) ?? [];
         int used = npcs.Count(i => _wanted[i]?.Source == mod);
-        var faces = $"{used:N0} of its {npcs.Count:N0} faces {(used == 1 ? "is" : "are")} used";
+        int own = npcs.Count(i => _npcs[i].Looks.Any(l => l.Source == mod)); // not NPCs that only get a face copied from it
+        var faces = $"{used:N0} of its {own:N0} faces {(used == 1 ? "is" : "are")} used";
         if (merged.Contains(mod))
             return used == 0 ? "None of its faces are used." : $"{faces}. They go into the NAM merge.";
 

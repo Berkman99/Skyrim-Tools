@@ -1,0 +1,23 @@
+<Window x:Class="NpcAppearanceManager.App.Views.RenamedNpcsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Renamed NPCs" Width="380" Height="420" MinWidth="260" MinHeight="200"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"
+        Background="{StaticResource WindowBrush}" Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="12">
+        <TextBlock x:Name="EmptyText" Text="No NPCs are renamed." Style="{StaticResource Muted}" />
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="List">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel Margin="0,0,0,4">
+                            <Button DockPanel.Dock="Right" Content="✕" MinWidth="0" Padding="8,2" Click="ResetName"
+                                    ToolTip="Give this NPC its own name back" />
+                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</Window>

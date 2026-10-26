@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace NpcFaceManager.App.Views;
+namespace NpcAppearanceManager.App.Views;
 
 /// <summary>True when an enum value's name equals the converter parameter.</summary>
 public sealed class EnumMatch : IValueConverter

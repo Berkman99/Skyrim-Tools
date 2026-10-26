@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using Mutagen.Bethesda.Skyrim;
-using NpcFaceManager.Core.Environment;
+using NpcAppearanceManager.Core.Environment;
 
-namespace NpcFaceManager.Core.Scanning;
+namespace NpcAppearanceManager.Core.Scanning;
 
 /// <summary>Opens plugins read-only on demand and keeps them open until disposed.</summary>
 public sealed class PluginCache : IDisposable
