@@ -1,0 +1,55 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+
+# Line length
+ColumnLimit: 120
+
+# Braces
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Pointers/references
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Includes
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+IncludeCategories:
+    - Regex: '^"PCH\.h"'
+      Priority: -1
+    - Regex: '^<RE/'
+      Priority: 1
+    - Regex: '^<SKSE/'
+      Priority: 2
+    - Regex: '^<REL/'
+      Priority: 3
+    - Regex: '^<(spdlog|toml\+\+|fmt)'
+      Priority: 4
+    - Regex: '^<'
+      Priority: 5
+    - Regex: '^"'
+      Priority: 10
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+
+# Misc
+AccessModifierOffset: -4
+NamespaceIndentation: None
+FixNamespaceComments: true
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements

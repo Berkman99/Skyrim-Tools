@@ -1,0 +1,21 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "release",
+            "displayName": "Release",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/b",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+                "VCPKG_HOST_TRIPLET": "x64-windows-static-md",
+                "VCPKG_INSTALL_OPTIONS": "--x-buildtrees-root=$env{LOCALAPPDATA}/vcpkg/bt"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "release", "configurePreset": "release", "configuration": "RelWithDebInfo" }
+    ]
+}

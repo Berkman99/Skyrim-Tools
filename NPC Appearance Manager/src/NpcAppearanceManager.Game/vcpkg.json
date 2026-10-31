@@ -1,0 +1,14 @@
+﻿{
+    "name": "npc-appearance-manager",
+    "version-string": "1.0.0",
+    "description": "NPC Appearance Manager's game part",
+    "dependencies": [
+        "detours",
+        "directxtk",
+        "lz4",
+        "rapidcsv",
+        "spdlog",
+        "tomlplusplus",
+        "zlib"
+    ]
+}
